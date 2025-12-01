@@ -62,11 +62,13 @@ public class PokerGame {
     public void playerSetup() {
         boolean addAnotherPlayer = true;
         while (addAnotherPlayer) {
-            addAnotherPlayer = false;
             addPlayer();
-            System.out.println("Do you want to add another player? (Y/N)");
-            if (scan.next().toLowerCase().contains("y")) {
-                addAnotherPlayer = true;
+            if (this.playerList.size() > 2) {
+                addAnotherPlayer = false;
+                System.out.println("Do you want to add another player? (Y/N)");
+                if (scan.next().toLowerCase().contains("y")) {
+                    addAnotherPlayer = true;
+                }
             }
         }
         this.dealer = playerList.get(0);
@@ -121,12 +123,15 @@ public class PokerGame {
 
     public void bettingRound(boolean isPreFlop) {
         int startingPlayerIndex;
+
         if (isPreFlop) {
-            startingPlayerIndex = this.playerList.indexOf(this.playerSmallBlind) + 2;
+            startingPlayerIndex = (this.playerList.indexOf(this.playerBigBlind) == this.playerList.size() - 1)
+                    ? 0 : this.playerList.indexOf(this.playerBigBlind) + 1;
         }
         else {
             startingPlayerIndex = this.playerList.indexOf(this.playerSmallBlind);
         }
+
         int currentPlayerIndex = startingPlayerIndex;
         for (int i = 0; i < this.playerList.size(); i++) {
             if (this.playerList.get(currentPlayerIndex).isInGame()) {
