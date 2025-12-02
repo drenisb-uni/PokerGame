@@ -102,6 +102,8 @@ public class PokerGame {
         else {
             this.playerBigBlind = this.playerList.get(0);
         }
+
+        for (Player player : this.playerList) player.setIsInGame(true);
     }
 
     public void payOutBlinds() {
@@ -167,7 +169,6 @@ public class PokerGame {
         currentPlayerIndex++;
         if (currentPlayerIndex == this.playerList.size()) {
             currentPlayerIndex = 0;
-            System.out.println("u bo 0");
         }
         return currentPlayerIndex;
     }
@@ -193,6 +194,7 @@ public class PokerGame {
     }
 
     public void fold(Player player) {
+        if (player.isInGame()) call(player);
         player.setIsInGame(false);
     }
 
