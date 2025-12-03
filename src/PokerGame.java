@@ -1,3 +1,5 @@
+import javax.swing.*;
+import java.awt.*;
 import java.util.*;
 
 public class PokerGame {
@@ -17,6 +19,23 @@ public class PokerGame {
     protected boolean keepPlaying;
     Scanner scan = new Scanner(System.in);
 
+    private int boardWidth = 1024;
+    private int boardHeight = 703;
+    private int cardWidth = 110;
+    private int cardHeight = 154;
+
+    JFrame frame = new JFrame("Poker");
+    JPanel panel = new JPanel() {
+        public void paint(Graphics g) {
+            super.paint(g);
+        }
+    };
+
+    JPanel buttonPanel = new JPanel();
+    JButton foldButton = new JButton("Fold");
+    JButton callButton = new JButton("Call");
+    JButton raiseButton = new JButton("Raise");
+
     public PokerGame(int smallBlind) {
         this.playerList = new ArrayList<Player>();
         this.gameDeck = new StandardDeck();
@@ -25,6 +44,25 @@ public class PokerGame {
         this.smallBlind = smallBlind;
         this.bigBlind = this.smallBlind * 2;
         this.keepPlaying = true;
+
+        frame.setVisible(true);
+        frame.setSize(boardWidth, boardHeight);
+        frame.setLocationRelativeTo(null);
+        frame.setResizable(false);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        panel.setLayout(new BorderLayout());
+        panel.setBackground(new Color(53, 101, 77));
+        frame.add(panel);
+
+        buttonPanel.add(foldButton);
+        buttonPanel.add(callButton);
+        buttonPanel.add(raiseButton);
+        foldButton.setFocusable(false);
+        callButton.setFocusable(false);
+        raiseButton.setFocusable(false);
+        panel.add(buttonPanel,  BorderLayout.SOUTH);
+
         playerSetup();
         while (this.keepPlaying) {
             boolean isPreFlop = true;
