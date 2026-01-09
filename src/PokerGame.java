@@ -5,7 +5,7 @@ import java.util.*;
 public class PokerGame {
 
     private static PokerGame instance = null;
-
+    
     protected ArrayList<Player> playerList;
     protected StandardDeck gameDeck;
     protected StandardCard[] communityCards;

@@ -62,4 +62,7 @@ public class StandardCard {
     public String toString() {
         return (convertValueToName() + " of " + this.suit);
     }
+    public String toImageString() {
+        return (this.value + "-" + this.suit.substring(0, 1).toUpperCase() + ".png");
+    }
 }

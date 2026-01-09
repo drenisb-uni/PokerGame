@@ -2,6 +2,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.ArrayList;
 
 public class GameFrame extends JFrame implements ActionListener {
 
@@ -12,12 +13,10 @@ public class GameFrame extends JFrame implements ActionListener {
     private int cardWidth = 110;
     private int cardHeight = 154;
 
+    private ArrayList<Image> deckImg;
+
     JFrame frame = new JFrame("Poker");
-    JPanel panel = new JPanel() {
-        public void paint(Graphics g) {
-            super.paint(g);
-        }
-    };
+    JPanel panel = new JPanel();
 
     JPanel playerSetupPanel = new JPanel();
     JLabel playerName = new JLabel("Player Name:");
@@ -32,6 +31,15 @@ public class GameFrame extends JFrame implements ActionListener {
 
     public GameFrame(PokerGame pokerGame) {
         this.pokerGame = pokerGame;
+        deckImg = new ArrayList<Image>();
+
+        for (int i = 0; i < 5; i++) {
+            if (pokerGame.communityCards[i] != null)
+                deckImg.add(new ImageIcon(pokerGame.communityCards[i].toImageString()).getImage());
+            else
+                deckImg.add(new ImageIcon("BACK.png").getImage());
+        }
+
         //frame setup
         frame.setSize(boardWidth, boardHeight);
         frame.setLocationRelativeTo(null);
@@ -68,6 +76,15 @@ public class GameFrame extends JFrame implements ActionListener {
         panel.add(buttonPanel, BorderLayout.SOUTH);
 
         frame.setVisible(true);
+    }
+
+    public void paint(Graphics g) {
+        super.paint(g);
+        draw(g);
+    }
+
+    public void draw(Graphics g) {
+        g.drawImage(deckImg.get(0), 102, 240, null);
     }
 
     @Override
