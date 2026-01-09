@@ -5,7 +5,7 @@ import java.util.*;
 public class PokerGame {
 
     private static PokerGame instance = null;
-
+    
     protected ArrayList<Player> playerList;
     protected StandardDeck gameDeck;
     protected StandardCard[] communityCards;
@@ -19,23 +19,6 @@ public class PokerGame {
     protected boolean keepPlaying;
     Scanner scan = new Scanner(System.in);
 
-    private int boardWidth = 1024;
-    private int boardHeight = 703;
-    private int cardWidth = 110;
-    private int cardHeight = 154;
-
-    JFrame frame = new JFrame("Poker");
-    JPanel panel = new JPanel() {
-        public void paint(Graphics g) {
-            super.paint(g);
-        }
-    };
-
-    JPanel buttonPanel = new JPanel();
-    JButton foldButton = new JButton("Fold");
-    JButton callButton = new JButton("Call");
-    JButton raiseButton = new JButton("Raise");
-
     public PokerGame(int smallBlind) {
         this.playerList = new ArrayList<Player>();
         this.gameDeck = new StandardDeck();
@@ -45,25 +28,10 @@ public class PokerGame {
         this.bigBlind = this.smallBlind * 2;
         this.keepPlaying = true;
 
-        frame.setVisible(true);
-        frame.setSize(boardWidth, boardHeight);
-        frame.setLocationRelativeTo(null);
-        frame.setResizable(false);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+//        gameLoop();
+    }
 
-        panel.setLayout(new BorderLayout());
-        panel.setBackground(new Color(53, 101, 77));
-        frame.add(panel);
-
-        buttonPanel.add(foldButton);
-        buttonPanel.add(callButton);
-        buttonPanel.add(raiseButton);
-        foldButton.setFocusable(false);
-        callButton.setFocusable(false);
-        raiseButton.setFocusable(false);
-        panel.add(buttonPanel,  BorderLayout.SOUTH);
-
-        playerSetup();
+    private void gameLoop() {
         while (this.keepPlaying) {
             boolean isPreFlop = true;
             for (int i = 0; i < 5; i++) {
@@ -98,17 +66,6 @@ public class PokerGame {
     }
 
     public void playerSetup() {
-        boolean addAnotherPlayer = true;
-        while (addAnotherPlayer) {
-            addPlayer();
-            if (this.playerList.size() > 2) {
-                addAnotherPlayer = false;
-                System.out.println("Do you want to add another player? (Y/N)");
-                if (scan.next().toLowerCase().contains("y")) {
-                    addAnotherPlayer = true;
-                }
-            }
-        }
         this.dealer = playerList.get(0);
         if (playerList.size() > 2) {
             this.playerSmallBlind = playerList.get(1);
@@ -153,9 +110,7 @@ public class PokerGame {
         }
     }
 
-    public void addPlayer() {
-        System.out.println("Enter player name:");
-        String tempName = scan.next();
+    public void addPlayer(String tempName) {
         int tempBalance = 200;
         StandardCard[] tempHoleCards = {gameDeck.getNextCard(), gameDeck.getNextCard()};
         playerList.add(new Player(tempName, tempBalance, tempHoleCards));
@@ -722,8 +677,13 @@ public class PokerGame {
         return result;
     }
 
+    public int getPlayerCount() {
+        return this.playerList.size();
+    }
+
     public static void main(String[] args) {
         PokerGame pg = new PokerGame(1);
+        GameFrame gameFrame = new GameFrame(pg);
     }
 
     public static synchronized PokerGame getInstance() {
