@@ -1,5 +1,7 @@
-import javax.swing.*;
-import java.awt.*;
+import main.pokergame.domain.model.Player;
+import main.pokergame.domain.model.Card;
+import main.pokergame.domain.model.Deck;
+
 import java.util.*;
 
 public class PokerGame {
@@ -7,8 +9,8 @@ public class PokerGame {
     private static PokerGame instance = null;
     
     protected ArrayList<Player> playerList;
-    protected StandardDeck gameDeck;
-    protected StandardCard[] communityCards;
+    protected Deck gameDeck;
+    protected Card[] communityCards;
     protected int winningPot;
     protected int smallBlind;
     protected int bigBlind;
@@ -21,8 +23,8 @@ public class PokerGame {
 
     public PokerGame(int smallBlind) {
         this.playerList = new ArrayList<Player>();
-        this.gameDeck = new StandardDeck();
-        this.communityCards = new StandardCard[5];
+        this.gameDeck = new Deck();
+        this.communityCards = new Card[5];
         this.winningPot = 0;
         this.smallBlind = smallBlind;
         this.bigBlind = this.smallBlind * 2;
@@ -57,10 +59,10 @@ public class PokerGame {
     }
 
     private void resetCards() {
-        this.gameDeck = new StandardDeck();
-        this.communityCards = new StandardCard[5];
+        this.gameDeck = new Deck();
+        this.communityCards = new Card[5];
         for (int i = 0; i < this.playerList.size(); i++) {
-            StandardCard[] tempHoleCards = {gameDeck.getNextCard(), gameDeck.getNextCard()};
+            Card[] tempHoleCards = {gameDeck.getNextCard(), gameDeck.getNextCard()};
             this.playerList.get(i).resetHoleCards(tempHoleCards);
         }
     }
@@ -112,7 +114,7 @@ public class PokerGame {
 
     public void addPlayer(String tempName) {
         int tempBalance = 200;
-        StandardCard[] tempHoleCards = {gameDeck.getNextCard(), gameDeck.getNextCard()};
+        Card[] tempHoleCards = {gameDeck.getNextCard(), gameDeck.getNextCard()};
         playerList.add(new Player(tempName, tempBalance, tempHoleCards));
     }
 
@@ -298,7 +300,7 @@ public class PokerGame {
             Player tempPlayer = this.playerList.get(i);
             if (tempPlayer.isInGame()) {
                 ArrayList<Integer> tempPlayerCards = new ArrayList<Integer>();
-                ArrayList<StandardCard> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
+                ArrayList<Card> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
                 for (int l = 0; l < tempPlayersCardsAll.size(); l++) {
                     if (tempPlayersCardsAll.get(l).getSuit().contains("Hearts")) {
                         hearts++;
@@ -348,7 +350,7 @@ public class PokerGame {
             Player tempPlayer = this.playerList.get(i);
             if (tempPlayer.isInGame()) {
                 ArrayList<Integer> tempPlayerCards = new ArrayList<Integer>();
-                ArrayList<StandardCard> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
+                ArrayList<Card> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
                 for (int l = 0; l < tempPlayersCardsAll.size(); l++) {
                     if (tempPlayersCardsAll.get(l).getSuit().contains("Hearts")) {
                         hearts++;
@@ -417,7 +419,7 @@ public class PokerGame {
             Player tempPlayer = this.playerList.get(i);
             if (tempPlayer.isInGame()) {
                 int [] allValues = new int[13];
-                ArrayList<StandardCard> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
+                ArrayList<Card> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
                 for (int j = 0; j < tempPlayersCardsAll.size(); j++) {
                     allValues[tempPlayersCardsAll.get(j).getValue()-2]++;
                 }
@@ -440,7 +442,7 @@ public class PokerGame {
                 boolean threeCard = false;
                 boolean twoCard = false;
 
-                ArrayList<StandardCard> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
+                ArrayList<Card> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
                 for (int j = 0; j < tempPlayersCardsAll.size(); j++) {
                     allValues[tempPlayersCardsAll.get(j).getValue()-2]++;
                 }
@@ -469,7 +471,7 @@ public class PokerGame {
             int clubs = 0;
             Player tempPlayer = this.playerList.get(i);
             if (tempPlayer.isInGame()) {
-                ArrayList<StandardCard> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
+                ArrayList<Card> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
                 for (int l = 0; l < tempPlayersCardsAll.size(); l++) {
                     if (tempPlayersCardsAll.get(l).getSuit().contains("Hearts")) {
                         hearts++;
@@ -497,7 +499,7 @@ public class PokerGame {
         for (int i = 0; i < this.playerList.size(); i++) {
             Player tempPlayer = this.playerList.get(i);
             if (tempPlayer.isInGame()) {
-                ArrayList<StandardCard> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
+                ArrayList<Card> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
                 ArrayList<Integer> tempPlayerCards = getValuesOfAllCards(tempPlayersCardsAll);
 
                 Collections.sort(tempPlayerCards);
@@ -542,7 +544,7 @@ public class PokerGame {
             Player tempPlayer = this.playerList.get(i);
             if (tempPlayer.isInGame()) {
                 int [] allValues = new int[13];
-                ArrayList<StandardCard> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
+                ArrayList<Card> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
                 for (int j = 0; j < tempPlayersCardsAll.size(); j++) {
                     allValues[tempPlayersCardsAll.get(j).getValue()-2]++;
                 }
@@ -563,7 +565,7 @@ public class PokerGame {
             if (tempPlayer.isInGame()) {
                 int [] allValues = new int[13];
                 int pairCount = 0;
-                ArrayList<StandardCard> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
+                ArrayList<Card> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
                 for (int j = 0; j < tempPlayersCardsAll.size(); j++) {
                     allValues[tempPlayersCardsAll.get(j).getValue()-2]++;
                 }
@@ -586,7 +588,7 @@ public class PokerGame {
             Player tempPlayer = this.playerList.get(i);
             if (tempPlayer.isInGame()) {
                 int [] allValues = new int[13];
-                ArrayList<StandardCard> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
+                ArrayList<Card> tempPlayersCardsAll = tempPlayersCardsAll(tempPlayer);
                 for (int j = 0; j < tempPlayersCardsAll.size(); j++) {
                     allValues[tempPlayersCardsAll.get(j).getValue()-2]++;
                 }
@@ -649,8 +651,8 @@ public class PokerGame {
         return winningPlayers;
     }
 
-    public ArrayList<StandardCard> tempPlayersCardsAll(Player player) {
-        ArrayList<StandardCard> result = new ArrayList<StandardCard>();
+    public ArrayList<Card> tempPlayersCardsAll(Player player) {
+        ArrayList<Card> result = new ArrayList<Card>();
         for (int i = 0; i < this.communityCards.length; i++) {
             result.add(this.communityCards[i]);
         }
@@ -659,7 +661,7 @@ public class PokerGame {
         return result;
     }
 
-    public ArrayList<Integer> getValuesOfSuit(ArrayList<StandardCard> playersCardsAll, String suit) {
+    public ArrayList<Integer> getValuesOfSuit(ArrayList<Card> playersCardsAll, String suit) {
         ArrayList<Integer> result = new ArrayList<Integer>();
         for (int i = 0; i < playersCardsAll.size(); i++) {
             if (playersCardsAll.get(i).getSuit().contains(suit)) {
@@ -669,7 +671,7 @@ public class PokerGame {
         return result;
     }
 
-    public ArrayList<Integer> getValuesOfAllCards(ArrayList<StandardCard> playersCardsAll) {
+    public ArrayList<Integer> getValuesOfAllCards(ArrayList<Card> playersCardsAll) {
         ArrayList<Integer> result = new ArrayList<Integer>();
         for (int i = 0; i < playersCardsAll.size(); i++) {
             result.add(playersCardsAll.get(i).getValue());

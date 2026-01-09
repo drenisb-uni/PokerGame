@@ -1,9 +1,11 @@
+package main.pokergame.domain.model;
+
 import java.util.ArrayList;
 
-public class StandardDeck {
-    private ArrayList<StandardCard> deck = new ArrayList<StandardCard>();
+public class Deck {
+    private ArrayList<Card> deck = new ArrayList<Card>();
 
-    public StandardDeck() {
+    public Deck() {
         reset();
         shuffleDeck();
     }
@@ -12,21 +14,21 @@ public class StandardDeck {
         this.deck.clear();
 
         for (int i = 2; i < 15; i++) {
-            deck.add(new StandardCard(i, "Hearts"));
+            deck.add(new Card(i, "Hearts"));
         }
         for (int i = 2; i < 15; i++) {
-            deck.add(new StandardCard(i, "Diamonds"));
+            deck.add(new Card(i, "Diamonds"));
         }
         for (int i = 2; i < 15; i++) {
-            deck.add(new StandardCard(i, "Spades"));
+            deck.add(new Card(i, "Spades"));
         }
         for (int i = 2; i < 15; i++) {
-            deck.add(new StandardCard(i, "Clubs"));
+            deck.add(new Card(i, "Clubs"));
         }
     }
 
     public void shuffleDeck() {
-        ArrayList<StandardCard> tempDeck = new ArrayList<StandardCard>();
+        ArrayList<Card> tempDeck = new ArrayList<Card>();
         while (!deck.isEmpty()) {
             int randomNum = (int) (Math.random() * 100) % this.deck.size();
             tempDeck.add(this.deck.remove(randomNum));
@@ -34,7 +36,7 @@ public class StandardDeck {
         this.deck = tempDeck;
     }
 
-    public StandardCard getNextCard() {
+    public Card getNextCard() {
         return this.deck.removeLast();
     }
 
