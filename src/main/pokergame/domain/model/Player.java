@@ -1,12 +1,14 @@
+package main.pokergame.domain.model;
+
 import java.util.Arrays;
 
 public class Player {
     private String name;
     private int balance;
-    private StandardCard[] holeCards = new StandardCard[2];
+    private Card[] holeCards = new Card[2];
     private boolean isInGame;
 
-    public Player(String name, int balance, StandardCard[] holeCards) {
+    public Player(String name, int balance, Card[] holeCards) {
         this.name = name;
         this.balance = balance;
         this.holeCards = holeCards;
@@ -29,7 +31,7 @@ public class Player {
         balance -= reduceAmount;
     }
 
-    public StandardCard[] getHoleCards() {
+    public Card[] getHoleCards() {
         return this.holeCards;
     }
 
@@ -41,7 +43,7 @@ public class Player {
         this.isInGame = isInGame;
     }
 
-    public void resetHoleCards(StandardCard[] holeCards) {
+    public void resetHoleCards(Card[] holeCards) {
         this.holeCards = holeCards;
     }
 
