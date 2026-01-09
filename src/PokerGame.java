@@ -1,9 +1,11 @@
+import javax.swing.*;
+import java.awt.*;
 import java.util.*;
 
 public class PokerGame {
 
     private static PokerGame instance = null;
-
+    
     protected ArrayList<Player> playerList;
     protected StandardDeck gameDeck;
     protected StandardCard[] communityCards;
@@ -25,7 +27,11 @@ public class PokerGame {
         this.smallBlind = smallBlind;
         this.bigBlind = this.smallBlind * 2;
         this.keepPlaying = true;
-        playerSetup();
+
+//        gameLoop();
+    }
+
+    private void gameLoop() {
         while (this.keepPlaying) {
             boolean isPreFlop = true;
             for (int i = 0; i < 5; i++) {
@@ -60,17 +66,6 @@ public class PokerGame {
     }
 
     public void playerSetup() {
-        boolean addAnotherPlayer = true;
-        while (addAnotherPlayer) {
-            addPlayer();
-            if (this.playerList.size() > 2) {
-                addAnotherPlayer = false;
-                System.out.println("Do you want to add another player? (Y/N)");
-                if (scan.next().toLowerCase().contains("y")) {
-                    addAnotherPlayer = true;
-                }
-            }
-        }
         this.dealer = playerList.get(0);
         if (playerList.size() > 2) {
             this.playerSmallBlind = playerList.get(1);
@@ -115,9 +110,7 @@ public class PokerGame {
         }
     }
 
-    public void addPlayer() {
-        System.out.println("Enter player name:");
-        String tempName = scan.next();
+    public void addPlayer(String tempName) {
         int tempBalance = 200;
         StandardCard[] tempHoleCards = {gameDeck.getNextCard(), gameDeck.getNextCard()};
         playerList.add(new Player(tempName, tempBalance, tempHoleCards));
@@ -684,8 +677,13 @@ public class PokerGame {
         return result;
     }
 
+    public int getPlayerCount() {
+        return this.playerList.size();
+    }
+
     public static void main(String[] args) {
         PokerGame pg = new PokerGame(1);
+        GameFrame gameFrame = new GameFrame(pg);
     }
 
     public static synchronized PokerGame getInstance() {
