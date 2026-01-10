@@ -33,12 +33,12 @@ public class GameFrame extends JFrame implements ActionListener {
         this.pokerGame = pokerGame;
         deckImg = new ArrayList<Image>();
 
-        for (int i = 0; i < 5; i++) {
-            if (pokerGame.communityCards[i] != null)
-                deckImg.add(new ImageIcon(pokerGame.communityCards[i].toImageString()).getImage());
-            else
-                deckImg.add(new ImageIcon("BACK.png").getImage());
-        }
+//        for (int i = 0; i < 5; i++) {
+//            if (pokerGame.communityCards[i] != null)
+//                deckImg.add(new ImageIcon(pokerGame.communityCards[i].toImageString()).getImage());
+//            else
+//                deckImg.add(new ImageIcon("BACK.png").getImage());
+//        }
 
         //frame setup
         frame.setSize(boardWidth, boardHeight);
@@ -89,16 +89,16 @@ public class GameFrame extends JFrame implements ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        if (e.getSource() == submitButton) {
-            pokerGame.addPlayer(playerNameField.getText());
-            if(pokerGame.getPlayerCount() > 2){
-                doneButton.setEnabled(true);
-            }
-        }
-
-        if (e.getSource() == doneButton) {
-            pokerGame.playerSetup();
-            panel.remove(playerSetupPanel);
-        }
+//        if (e.getSource() == submitButton) {
+//            pokerGame.addPlayer(playerNameField.getText());
+//            if(pokerGame.getPlayerCount() > 2){
+//                doneButton.setEnabled(true);
+//            }
+//        }
+//
+//        if (e.getSource() == doneButton) {
+//            pokerGame.playerSetup();
+//            panel.remove(playerSetupPanel);
+//        }
     }
 }
