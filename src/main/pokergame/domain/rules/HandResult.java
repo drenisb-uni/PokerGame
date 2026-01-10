@@ -10,11 +10,12 @@ public class HandResult implements Comparable<HandResult> {
         this.kickers = kickers;
     }
 
+    public HandType getType() { return type; }
+
     @Override
     public int compareTo(HandResult o) {
-        if (this.type.getValue() != o.type.getValue()) {
-            return Integer.compare(this.type.getValue(), o.type.getValue());
-        }
+        int typeCompare = Integer.compare(this.type.getValue(), o.type.getValue());
+        if (typeCompare != 0) return typeCompare;
 
         for (int i = 0; i < this.kickers.size(); i++) {
             int compare = Integer.compare(this.kickers.get(i), o.kickers.get(i));
