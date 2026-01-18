@@ -1,31 +1,18 @@
+import main.pokergame.dbinfrastructure.InMemoryPlayerRepository;
 import main.pokergame.domain.model.Card;
 import main.pokergame.domain.model.Deck;
+import main.pokergame.domain.repository.PlayerRepository;
+import main.pokergame.engine.PokerGameEngine;
 
 import java.util.*;
 
 public class PokerGame {
-
-    private static PokerGame instance = null;
-
-    PokerGame() {
-        getInstance();
+    static void main() {
+        // db
+        PlayerRepository repository = new InMemoryPlayerRepository();
+        // logic
+        PokerGameEngine engine = new PokerGameEngine(repository);
+        // ui
+        // MainUI mainUI = new MainUI();
     }
-    
-    public static void main(String[] args) {
-        PokerGame pg = new PokerGame();
-        GameFrame gameFrame = new GameFrame(pg);
-    }
-
-    public static synchronized PokerGame getInstance() {
-        if (instance == null) {
-            instance = new PokerGame();
-        }
-        else {
-            instance = null;
-            instance = new PokerGame();
-        }
-
-        return instance;
-    }
-
 }
