@@ -8,6 +8,4 @@ public class FindWinner
     public FindWinner() {
         System.out.println("Find Winner");
     }
-
-
 }

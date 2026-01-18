@@ -40,10 +40,12 @@ public class HandRanker {
                 .limit(5)
                 .map(Card::getValue)
                 .collect(Collectors.toList());
+
         return new HandResult(HandType.HIGH_CARD, top5Cards);
     }
 
     private HandResult checkStraightFlush(List<Card> allCards) {
+        //najdit tjeter
         return null;
     }
 
