@@ -11,9 +11,14 @@ import main.pokergame.engine.PokerGameEngine;
 import java.util.List;
 
 public class ConsoleDebbuger implements GameEventListener {
-
+    private PokerGameEngine engine;
     public ConsoleDebbuger(PokerGameEngine engine) {
+        this.engine = engine;
+    }
 
+    @Override
+    public void onNewSeatOccupied(TableSeat tableSeat) {
+        System.out.println("DEBUG: player has sat on table seat " + tableSeat);
     }
 
     @Override

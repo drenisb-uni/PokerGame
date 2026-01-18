@@ -22,8 +22,9 @@ public class TableSeat {
         this.currentRoundBet += amount;
     }
 
-    public int getChipsOnTable() { return chipsOnTable; }
-    public List<Card> getHoleCards() { return holeCards; }
-    public boolean isFolded() { return isFolded; }
-    private int getCurrentRoundBet() { return currentRoundBet; }
+    public String getUsername() { return this.profile.getUsername(); }
+    public int getChipsOnTable() { return this.chipsOnTable; }
+    public List<Card> getHoleCards() { return this.holeCards; }
+    public boolean isFolded() { return this.isFolded; }
+    private int getCurrentRoundBet() { return this.currentRoundBet; }
 }

@@ -6,6 +6,8 @@ import java.util.List;
 
 public interface GameEventListener {
 
+    void onNewSeatOccupied(TableSeat tableSeat);
+
     void onGameStateChanged(GameState newState);
 
     void onCommunityCardsDealt(List<Card> cards);

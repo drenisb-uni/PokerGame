@@ -14,4 +14,6 @@ public class PlayerProfile {
     public String getId() {return id;}
     public String getUsername() {return username;}
     public int getTotalBankroll() {return totalBankroll;}
+
+    public void setTotalBankroll(int totalBankroll) {this.totalBankroll = totalBankroll;}
 }
