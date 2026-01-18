@@ -46,6 +46,7 @@ public class PokerGameEngine {
     public void addObserver(GameEventListener observer){
         this.observers.add(observer);
     }
+
     public void removeObserver(GameEventListener observer){
         this.observers.remove(observer);
     }
