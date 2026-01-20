@@ -2,292 +2,203 @@ package main.pokergame.engine;
 
 import main.pokergame.domain.model.Card;
 import main.pokergame.domain.model.Deck;
-import main.pokergame.domain.model.Player;
+import main.pokergame.domain.model.PlayerProfile;
+import main.pokergame.domain.model.TableSeat;
+import main.pokergame.domain.repository.PlayerRepository;
+import main.pokergame.domain.rules.HandResult;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Scanner;
+import java.util.List;
 
 public class PokerGameEngine {
-    protected ArrayList<Player> playerList;
-    protected Deck gameDeck;
-    protected Card[] communityCards;
-    protected int winningPot;
-    protected int smallBlind;
-    protected int bigBlind;
-    protected Player dealer;
-    protected Player playerSmallBlind;
-    protected Player playerBigBlind;
-    protected int[] playersTotalBets;
-    protected boolean keepPlaying;
+    private PlayerRepository playerRepository;
+    private ArrayList<GameEventListener> observers = new ArrayList<>();
 
-    public PokerGameEngine(int smallBlind) {
-        this.playerList = new ArrayList<Player>();
-        this.gameDeck = new Deck();
-        this.communityCards = new Card[5];
-        this.winningPot = 0;
-        this.smallBlind = smallBlind;
-        this.bigBlind = this.smallBlind * 2;
-        this.keepPlaying = true;
+    private GameState currentState;
+    private final List<TableSeat> tableSeats =  new ArrayList<>();
+    private final Deck deck;
+    private final List<Card> communityCards =  new ArrayList<>();
 
-//        gameLoop();
+    private int dealerIndex = 0;
+    private int currentPlayerIndex = 0;
+
+    public PokerGameEngine(PlayerRepository playerRepository) {
+        this.playerRepository = playerRepository;
+        this.deck = new Deck();
+        this.currentState = GameState.WAITING_FOR_PLAYERS;
     }
 
-    private void gameLoop() {
-        while (this.keepPlaying) {
-            boolean isPreFlop = true;
-            for (int i = 0; i < 5; i++) {
-                bettingRound(isPreFlop);
-                isPreFlop = false;
-                dealNextCommunityCard();
-            }
-
-            rotatePlayerPositions();
-
-            int moneyLeftPerPlayer = 0;
-            for (Player player : this.playerList) {
-                if (player.getBalance() != 0) {
-                    moneyLeftPerPlayer++;
-                }
-            }
-            if (moneyLeftPerPlayer <= 1) {
-                this.keepPlaying = false;
-            }
-            resetCards();
-        }
+    public void save(PlayerProfile profile) {
+        playerRepository.saveProfile(profile);
     }
 
-    private void resetCards() {
-        this.gameDeck = new Deck();
-        this.communityCards = new Card[5];
-        for (int i = 0; i < this.playerList.size(); i++) {
-            Card[] tempHoleCards = {gameDeck.getNextCard(), gameDeck.getNextCard()};
-            this.playerList.get(i).resetHoleCards(tempHoleCards);
-        }
-    }
+    public boolean joinTable(String username, int buyAmount) {
+        PlayerProfile user = playerRepository.findProfileByUsername(username);
 
-    public void playerSetup() {
-        this.dealer = playerList.get(0);
-        if (playerList.size() > 2) {
-            this.playerSmallBlind = playerList.get(1);
-            this.playerBigBlind = playerList.get(2);
-        }
-        this.playersTotalBets = new int[playerList.size()];
-        payOutBlinds();
-    }
+        if (user == null)
+            throw new IllegalArgumentException("User not found!");
+        if (user.getTotalBankroll() < buyAmount)
+            return false;
 
-    public void rotatePlayerPositions() {
-        int dealerIndex = this.playerList.indexOf(this.dealer);
-        int smallBlindIndex = this.playerList.indexOf(this.playerSmallBlind);
-        int bigBlindIndex = this.playerList.indexOf(this.playerBigBlind);
-        if (dealerIndex < this.playerList.size()-1) {
-            this.dealer = this.playerList.get(dealerIndex+1);
-        }
-        else {
-            this.dealer = this.playerList.get(0);
-        }
-        if (smallBlindIndex < this.playerList.size()-1) {
-            this.playerSmallBlind = this.playerList.get(smallBlindIndex+1);
-        }
-        else {
-            this.playerSmallBlind = this.playerList.get(0);
-        }
-        if (bigBlindIndex < this.playerList.size()-1) {
-            this.playerBigBlind = this.playerList.get(bigBlindIndex+1);
-        }
-        else {
-            this.playerBigBlind = this.playerList.get(0);
-        }
+        user.setTotalBankroll(user.getTotalBankroll() - buyAmount);
+        playerRepository.saveProfile(user);
 
-        for (Player player : this.playerList) player.setIsInGame(true);
-    }
+        TableSeat newSeat = new TableSeat(user, buyAmount);
+        tableSeats.add(newSeat);
 
-    public void payOutBlinds() {
-        if (this.playerList.size() > 2) {
-            this.playerSmallBlind.reduceToBalance(this.smallBlind);
-            this.playersTotalBets[this.playerList.indexOf(playerSmallBlind)] = this.smallBlind;
-            this.playerBigBlind.reduceToBalance(this.bigBlind);
-            this.playersTotalBets[this.playerList.indexOf(this.playerBigBlind)] = this.bigBlind;
-        }
-    }
-
-    public void addPlayer(String tempName) {
-        int tempBalance = 200;
-        Card[] tempHoleCards = {gameDeck.getNextCard(), gameDeck.getNextCard()};
-        playerList.add(new Player(tempName, tempBalance, tempHoleCards));
-    }
-
-    public void bettingRound(boolean isPreFlop) {
-        int startingPlayerIndex;
-
-        if (isPreFlop) {
-            startingPlayerIndex = (this.playerList.indexOf(this.playerBigBlind) == this.playerList.size() - 1)
-                    ? 0 : this.playerList.indexOf(this.playerBigBlind) + 1;
-        }
-        else {
-            startingPlayerIndex = this.playerList.indexOf(this.playerSmallBlind);
-        }
-
-        int currentPlayerIndex = startingPlayerIndex;
-        for (int i = 0; i < this.playerList.size(); i++) {
-            if (this.playerList.get(currentPlayerIndex).isInGame()) {
-                currentPlayerIndex = individualBet(currentPlayerIndex);
-            }
-        }
-        while (!areAllBetsEqual()) {
-            currentPlayerIndex = individualBet(currentPlayerIndex);
-        }
-    }
-
-    public int individualBet(int currentPlayerIndex) {
-//        String checkOrCall = areAllBetsEqual() ? "check" : "call";
-//        printCommunityCards();
-//        if (this.playerList.get(currentPlayerIndex).isInGame()) {
-//            System.out.println("The pot is: " + this.winningPot);
-//            System.out.println(this.playerList.get(currentPlayerIndex).toString() +
-//                    "\nDo you want to fold, " + checkOrCall + " or raise?");
-//            if (answer.toLowerCase().contains("fold")) {
-//                fold(this.playerList.get(currentPlayerIndex));
-//            }
-//            else if (answer.toLowerCase().contains("call")) {
-//                call(this.playerList.get(currentPlayerIndex));
-//            }
-//            else if (answer.toLowerCase().contains("raise")) {
-//                raise(this.playerList.get(currentPlayerIndex));
-//            }
-//        }
-//        else fold(this.playerList.get(currentPlayerIndex));
-//
-//        // Check will do nothing in the program just moves the index to the next player
-//        currentPlayerIndex++;
-//        if (currentPlayerIndex == this.playerList.size()) {
-//            currentPlayerIndex = 0;
-//        }
-        return currentPlayerIndex;
-    }
-
-    public boolean areAllBetsEqual() {
-        int highestBet = getHighestBet();
-        for (int j = 0; j < this.playersTotalBets.length; j++) {
-            if (this.playersTotalBets[j] < highestBet && this.playerList.get(j).isInGame()) {
-                return false;
-            }
-        }
+        notifySeatOccupied(newSeat);
         return true;
     }
 
-    public int getHighestBet() {
-        int highestBet = 0;
-        for (int i = 0; i < this.playersTotalBets.length; i++) {
-            if (this.playersTotalBets[i] > highestBet && this.playerList.get(i).isInGame()) {
-                highestBet = this.playersTotalBets[i];
+    public void startNewHand() {
+        if (tableSeats.size() < 2) return;
+
+        deck.shuffleDeck();
+
+        //resetRoundState();
+
+        //handleBlinds();
+
+        //dealHoleCards();
+
+        currentState = GameState.PRE_FLOP_BETTING;
+        notifyGameStateChanged(currentState);
+        promptNextPlayer();
+    }
+
+    public void executePlayerAction(String username, String actionType, int amount) {
+        TableSeat actor = tableSeats.get(currentPlayerIndex);
+        if (!actor.getUsername().equals(username))
+            return;
+
+        switch (actionType) {
+            case "FOLD" -> handleFold(actor);
+            case "CALL" -> handleCall(actor);
+            case "RAISE" -> handleRaise(actor, amount);
+        }
+
+        notifyPlayerAction(actor, actionType, amount);
+        advanceTurn();
+    }
+
+    private void advanceTurn() {
+        if (isBettingRoundComplete()) {
+            advanceGameStage();
+        } else {
+            currentPlayerIndex = (currentPlayerIndex + 1) % tableSeats.size();
+            while (tableSeats.get(currentPlayerIndex).isFolded()) {
+                currentPlayerIndex = (currentPlayerIndex + 1) % tableSeats.size();
+            }
+            promptNextPlayer();
+        }
+    }
+
+    private void advanceGameStage() {
+        resetBettingForNextRound();
+
+        switch (currentState) {
+            case PRE_FLOP_BETTING -> {
+                currentState = GameState.FLOP_DEALING;
+            }
+            case FLOP_DEALING -> {
+                currentState = GameState.FLOP_BETTING;
+            }
+            case FLOP_BETTING -> {
+                currentState = GameState.TURN_DEALING;
+            }
+            case TURN_DEALING -> {
+                currentState = GameState.TURN_DEALING;
+            }
+            case TURN_BETTING -> {
+                currentState = GameState.RIVER_DEALING;
+            }
+            case RIVER_DEALING -> {
+                currentState = GameState.RIVER_BETTING;
+            }
+            case RIVER_BETTING -> {
+                currentState = GameState.SHOWDOWN;
+            }
+            case SHOWDOWN -> {
+                currentState = GameState.HAND_OVER;
             }
         }
-        return highestBet;
+
+        notifyGameStateChanged(currentState);
+        currentPlayerIndex = getNextActiveSeatIndex(dealerIndex);
+        promptNextPlayer();
     }
 
-    public void fold(Player player) {
-        if (player.isInGame()) call(player);
-        player.setIsInGame(false);
+    private int getNextActiveSeatIndex(int dealerIndex) {
+        if (dealerIndex == tableSeats.size() - 1)
+            return dealerIndex + 1;
+        else
+            return 0;
     }
 
-    public void call(Player player) {
-        int highestBet = getHighestBet();
-        int playersBetDifference = highestBet - (this.playersTotalBets[this.playerList.indexOf(player)]);
-        player.reduceToBalance(playersBetDifference);
-        this.playersTotalBets[this.playerList.indexOf(player)] += playersBetDifference;
-        updateWinningPot();
+    //call fold raise
+
+    private void handleFold(TableSeat actor) {
     }
 
-    public void raise(Player player) {
-        System.out.println(player.getName() + ": How much do you want to raise?");
-        int raiseAmount = 0;
-        call(player);
-        player.reduceToBalance(raiseAmount);
-        this.playersTotalBets[this.playerList.indexOf(player)] += raiseAmount;
-        updateWinningPot();
+    private void handleCall(TableSeat actor) {
     }
 
-    public void updateWinningPot() {
-        this.winningPot = 0;
-        for (int i = 0; i < this.playersTotalBets.length; i++) {
-            this.winningPot += this.playersTotalBets[i];
-        }
+    private void handleRaise(TableSeat actor, int amount) {
     }
 
-    public void dealNextCommunityCard() {
-        if (this.communityCards[0] == null) { // Flop
-            this.communityCards[0] = this.gameDeck.getNextCard();
-            this.communityCards[1] = this.gameDeck.getNextCard();
-            this.communityCards[2] = this.gameDeck.getNextCard();
-        }
-        else if (this.communityCards[3] == null) { // Turn
-            this.communityCards[3] = this.gameDeck.getNextCard();
-        }
-        else if (this.communityCards[4] == null) {
-            this.communityCards[4] = this.gameDeck.getNextCard();
-        }
+    //betting round
+
+    private void resetBettingForNextRound() {
     }
 
-//    public void printCommunityCards() {
-//        System.out.println("-----------------------------------------------------");
-//        if (this.communityCards[0] != null && this.communityCards[3] == null && this.communityCards[4] == null) { // Flop
-//            System.out.println("The flop:");
-//        }
-//        else if (this.communityCards[3] != null && this.communityCards[4] == null) { // Turn
-//            System.out.println("The turn:");
-//        }
-//        else if (this.communityCards[4] != null) {
-//            System.out.println("The river:");
-//        }
-//        System.out.println(Arrays.toString(this.communityCards));
-//        System.out.println("-----------------------------------------------------");
-//    }
+    private boolean isBettingRoundComplete() {
+        return currentState != GameState.PRE_FLOP_BETTING;
+    }
 
-//    public void findWinner() {
-//        ArrayList<Player> winningPlayers = new ArrayList<Player>();
-//        //royalFlush
-//        winningPlayers = royalFlush();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//        //straightFlush
-//        winningPlayers = straightFlush();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//        //fourOfAKind
-//        winningPlayers = fourOfAKind();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//        //fullHouse
-//        winningPlayers = fullHouse();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//        //flush
-//        winningPlayers = flush();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//        //straight
-//        winningPlayers = straight();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//        //threeOfAKind
-//        winningPlayers = threeOfAKind();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//        //twoPair
-//        winningPlayers = twoPair();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//        //onePair
-//        winningPlayers = onePair();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//        //highCard
-//        winningPlayers = highCard();
-//        if (!winningPlayers.isEmpty()) handleWinners(winningPlayers);
-//
-//        System.out.println("Winner(s) are: " + winningPlayers);
-//    }
-//
-//    public void handleWinners(ArrayList<Player> winningPlayers) {
-//        int tempWinnerAward = this.winningPot / winningPlayers.size();
-//        for (int i = 0; i < winningPlayers.size(); i++) {
-//            winningPlayers.get(i).addToBalance(tempWinnerAward);
-//        }
-//        this.winningPot = 0;
-//    }
-//
+    //Observer pattern functions
+
+    public void addObserver(GameEventListener observer){
+        this.observers.add(observer);
+    }
+
+    private void promptNextPlayer(){
+        TableSeat actor = tableSeats.get(currentPlayerIndex);
+        int amount = 0; //match betting amount
+        notifyPlayerTurn(actor, amount);
+    }
+
+    private void notifySeatOccupied(TableSeat newSeat) {
+        for (GameEventListener obs : observers)
+            obs.onNewSeatOccupied(newSeat);
+    }
+
+    private void notifyGameStateChanged(GameState currentState) {
+        for (GameEventListener obs : observers)
+            obs.onGameStateChanged(currentState);
+    }
+
+    private void notifyCardsDealt(List<Card> cards) {
+        for (GameEventListener obs : observers)
+            obs.onCommunityCardsDealt(cards);
+    }
+
+    private void notifyPlayerTurn(TableSeat actor, int amount) {
+        for (GameEventListener obs : observers)
+            obs.onPlayerTurn(actor, amount);
+    }
+    private void notifyPlayerAction(TableSeat actor, String actionType, int amount) {
+        for (GameEventListener obs : observers)
+            obs.onPlayerAction(actor, actionType, amount);
+    }
+    private void notifyHandResult(List<TableSeat> winners, HandResult winnerHand, int potSize) {
+        for (GameEventListener obs : observers)
+            obs.onHandResult(winners, winnerHand, potSize);
+    }
+
+
+
+
 
 }

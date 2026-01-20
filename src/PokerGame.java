@@ -1,24 +1,28 @@
-import main.pokergame.domain.model.Player;
+import main.pokergame.dbinfrastructure.InMemoryPlayerRepository;
+import main.pokergame.dbinfrastructure.SqlPlayerRepository;
 import main.pokergame.domain.model.Card;
 import main.pokergame.domain.model.Deck;
+import main.pokergame.domain.repository.PlayerRepository;
+import main.pokergame.engine.PokerGameEngine;
+import main.pokergame.view.ConsoleDebbuger;
 
 import java.util.*;
 
 public class PokerGame {
+    static void main() {
+        // db
+        String dbUrl = "jdbc:mysql://localhost:3306/poker_db";
+        String dbUser = "root";
+        String dbPass = "11X.gjiaDB";
 
-    private static PokerGame instance = null;
-    
+        PlayerRepository repository = new SqlPlayerRepository(dbUrl, dbUser, dbPass);
 
-    public static void main(String[] args) {
-        PokerGame pg = new PokerGame();
-        GameFrame gameFrame = new GameFrame(pg);
+        // logic
+        PokerGameEngine engine = new PokerGameEngine(repository);
+
+        // ui
+        // MainUI mainUI = new MainUI();
+        ConsoleDebbuger debbuger = new ConsoleDebbuger(engine);
+        engine.addObserver(debbuger);
     }
-
-    public static synchronized PokerGame getInstance() {
-        if (instance == null) {
-            instance = new PokerGame();
-        }
-        return instance;
-    }
-
 }

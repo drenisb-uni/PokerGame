@@ -89,16 +89,5 @@ public class GameFrame extends JFrame implements ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-//        if (e.getSource() == submitButton) {
-//            pokerGame.addPlayer(playerNameField.getText());
-//            if(pokerGame.getPlayerCount() > 2){
-//                doneButton.setEnabled(true);
-//            }
-//        }
-//
-//        if (e.getSource() == doneButton) {
-//            pokerGame.playerSetup();
-//            panel.remove(playerSetupPanel);
-//        }
     }
 }
