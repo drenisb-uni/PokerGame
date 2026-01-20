@@ -30,6 +30,10 @@ public class PokerGameEngine {
         this.currentState = GameState.WAITING_FOR_PLAYERS;
     }
 
+    public void save(PlayerProfile profile) {
+        playerRepository.saveProfile(profile);
+    }
+
     public boolean joinTable(String username, int buyAmount) {
         PlayerProfile user = playerRepository.findProfileByUsername(username);
 
