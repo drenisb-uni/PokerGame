@@ -14,7 +14,7 @@ import java.util.List;
 
 public class PokerGameEngine {
     private PlayerRepository playerRepository;
-    private ArrayList<GameEventListener> observers = new ArrayList<>();
+    private ArrayList<IGameEventListener> observers = new ArrayList<>();
 
     private GameState currentState;
     private final List<TableSeat> tableSeats =  new ArrayList<>();
@@ -29,6 +29,8 @@ public class PokerGameEngine {
         this.deck = new Deck();
         this.currentState = GameState.WAITING_FOR_PLAYERS;
     }
+
+    //Lobby
 
     public void save(PlayerProfile profile) {
         playerRepository.saveProfile(profile);
@@ -51,6 +53,8 @@ public class PokerGameEngine {
         notifySeatOccupied(newSeat);
         return true;
     }
+
+    // State Machine
 
     public void startNewHand() {
         if (tableSeats.size() < 2) return;
@@ -137,7 +141,16 @@ public class PokerGameEngine {
             return 0;
     }
 
-    //call fold raise
+    //betting round
+
+    private void resetBettingForNextRound() {
+    }
+
+    private boolean isBettingRoundComplete() {
+        return currentState != GameState.PRE_FLOP_BETTING;
+    }
+
+    // Public Action API
 
     private void handleFold(TableSeat actor) {
     }
@@ -148,52 +161,43 @@ public class PokerGameEngine {
     private void handleRaise(TableSeat actor, int amount) {
     }
 
-    //betting round
-
-    private void resetBettingForNextRound() {
-    }
-
-    private boolean isBettingRoundComplete() {
-        return currentState != GameState.PRE_FLOP_BETTING;
-    }
-
-    //Observer pattern functions
-
-    public void addObserver(GameEventListener observer){
-        this.observers.add(observer);
-    }
-
     private void promptNextPlayer(){
         TableSeat actor = tableSeats.get(currentPlayerIndex);
         int amount = 0; //match betting amount
         notifyPlayerTurn(actor, amount);
     }
 
+    // Observer pattern functions
+
+    public void addObserver(IGameEventListener observer){
+        this.observers.add(observer);
+    }
+
     private void notifySeatOccupied(TableSeat newSeat) {
-        for (GameEventListener obs : observers)
+        for (IGameEventListener obs : observers)
             obs.onNewSeatOccupied(newSeat);
     }
 
     private void notifyGameStateChanged(GameState currentState) {
-        for (GameEventListener obs : observers)
+        for (IGameEventListener obs : observers)
             obs.onGameStateChanged(currentState);
     }
 
     private void notifyCardsDealt(List<Card> cards) {
-        for (GameEventListener obs : observers)
+        for (IGameEventListener obs : observers)
             obs.onCommunityCardsDealt(cards);
     }
 
     private void notifyPlayerTurn(TableSeat actor, int amount) {
-        for (GameEventListener obs : observers)
+        for (IGameEventListener obs : observers)
             obs.onPlayerTurn(actor, amount);
     }
     private void notifyPlayerAction(TableSeat actor, String actionType, int amount) {
-        for (GameEventListener obs : observers)
+        for (IGameEventListener obs : observers)
             obs.onPlayerAction(actor, actionType, amount);
     }
     private void notifyHandResult(List<TableSeat> winners, HandResult winnerHand, int potSize) {
-        for (GameEventListener obs : observers)
+        for (IGameEventListener obs : observers)
             obs.onHandResult(winners, winnerHand, potSize);
     }
 

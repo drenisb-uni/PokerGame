@@ -6,14 +6,11 @@ import main.pokergame.domain.repository.PlayerRepository;
 import java.sql.*;
 
 public class SqlPlayerRepository implements PlayerRepository {
-    private final String url;
-    private final String username;
-    private final String password;
 
-    public SqlPlayerRepository(String url, String username, String password) {
-        this.url = url;
-        this.username = username;
-        this.password = password;
+    private final DataSource ds;
+
+    public SqlPlayerRepository(DataSource ds) {
+        this.ds = ds;
     }
 
     private Connection getConnection() throws SQLException {

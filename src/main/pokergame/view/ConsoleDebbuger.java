@@ -4,7 +4,7 @@ import main.pokergame.domain.model.Card;
 import main.pokergame.domain.model.PlayerProfile;
 import main.pokergame.domain.model.TableSeat;
 import main.pokergame.domain.rules.HandResult;
-import main.pokergame.engine.GameEventListener;
+import main.pokergame.engine.IGameEventListener;
 import main.pokergame.engine.GameState;
 import main.pokergame.engine.PokerGameEngine;
 
@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
 
-public class ConsoleDebbuger implements GameEventListener {
+public class ConsoleDebbuger implements IGameEventListener {
     private PokerGameEngine engine;
     private final Scanner scanner = new Scanner(System.in);
     public ConsoleDebbuger(PokerGameEngine engine) {

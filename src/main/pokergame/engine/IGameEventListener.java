@@ -4,7 +4,7 @@ import main.pokergame.domain.model.TableSeat;
 import main.pokergame.domain.rules.HandResult;
 import java.util.List;
 
-public interface GameEventListener {
+public interface IGameEventListener {
 
     void onNewSeatOccupied(TableSeat tableSeat);
 

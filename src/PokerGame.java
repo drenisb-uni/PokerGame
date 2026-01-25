@@ -1,3 +1,4 @@
+import main.pokergame.dbinfrastructure.DataSource;
 import main.pokergame.dbinfrastructure.InMemoryPlayerRepository;
 import main.pokergame.dbinfrastructure.SqlPlayerRepository;
 import main.pokergame.domain.model.Card;
@@ -15,7 +16,9 @@ public class PokerGame {
         String dbUser = "root";
         String dbPass = "11X.gjiaDB";
 
-        PlayerRepository repository = new SqlPlayerRepository(dbUrl, dbUser, dbPass);
+        DataSource ds = new DataSource(dbUrl, dbUser, dbPass);
+
+        PlayerRepository repository = new SqlPlayerRepository(ds);
 
         // logic
         PokerGameEngine engine = new PokerGameEngine(repository);
