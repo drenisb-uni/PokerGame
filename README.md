@@ -1,59 +1,37 @@
-# Poker Game Engine – Design Principles & Future Vision
+# 🃏 Poker Game Refactoring Project
 
-A scalable Java poker engine built with modern software engineering principles in mind.
+![Java](https://img.shields.io/badge/Java-17%2B-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![JavaFX](https://img.shields.io/badge/JavaFX-UI%2FUX-blue?style=for-the-badge&logo=java&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-DB-00000F?style=for-the-badge&logo=mysql&logoColor=white)
 
----
+> A robust, multiplayer Texas Hold'em Poker engine featuring a modern **JavaFX UI**, refactored into a strict **Model-View-Controller (MVC)** architecture.
 
-## Project Goal
+## 📖 Project Overview
 
-This project aims to transform a monolithic poker implementation into a clean, modular, and scalable system that follows industry-standard programming principles and architectural patterns.
+This project modernizes a legacy poker application by decoupling the "Business Logic" from the "Presentation." The most significant upgrade is the transition to **JavaFX**, enabling a professional-grade User Experience (UX) with smooth animations and CSS-based styling.
 
----
-
-## Core Programming Principles
-
-### 1. Single Responsibility Principle (SRP)
-
-Each class has exactly one responsibility:
-
-| Class -> Responsibility |
-|------------------------|
-| PokerTable -> Store game state |
-| HandRanker -> Evaluate hands |
-| PokerGameEngine -> Control game flow |
-| GameFrame -> Render UI |
-| Controller -> Handle user actions |
+### Key Features
+* **Modern UI/UX:** Built with **JavaFX & FXML**, allowing for a responsive layout that separates visual design from code.
+* **Layered Architecture:** Strict separation between Domain, Engine, and UI.
+* **Reactive Updates:** The JavaFX UI uses the **Observer Pattern** to react instantly to game events (e.g., updates the Pot label immediately when a player bets).
+* **Persistence:** MySQL database for tracking bankrolls and hand histories.
 
 ---
 
-### 2. Separation of Concerns
+## 🏗️ Architecture
 
-The system is modeled after **MVC** Pattern:
-
-- **Model** – Game data  
-- **View** – User interface  
-- **Controller** – Input handling  
-- **Services** – Hand evaluation, deck logic, etc.
-
-This allows independent development and testing.
+| Layer | Responsibility | Key Classes |
+| :--- | :--- | :--- |
+| **Domain** | Pure Logic (Rules, Cards). | `HandRanker`, `Card` |
+| **Engine** | State Management. | `PokerGameEngine` |
+| **View (JavaFX)** | **FXML** layouts & **CSS** styling. | `TableLayout.fxml`, `GameController.java` |
 
 ---
 
-### 3. Open / Closed Principle
+## 🛠️ Built With
 
-Game rules are extensible:
-
-- New poker variants  
-- New ranking systems  
-- New AI players  
-
-Without modifying existing engine logic.
-
----
-
-### 4. Dependency Inversion
-
-High-level modules depend on abstractions:
-
-```java
-HandRanker ranker = new TexasHoldemHandRanker();
+* **Language:** Java 17
+* **UI Framework:** **JavaFX** (with FXML)
+* **Database:** MySQL
+* **Build Tool:** Maven
+* **AI Assistance:** Google Gemini (Architecture & Refactoring)
