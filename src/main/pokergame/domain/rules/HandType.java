@@ -1,4 +1,4 @@
-package main.pokergame.domain.rules;
+package pokergame.domain.rules;
 
 public enum HandType {
     HIGH_CARD(1),

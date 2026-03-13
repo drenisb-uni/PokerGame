@@ -1,4 +1,4 @@
-package main.pokergame.dbinfrastructure;
+package pokergame.dbinfrastructure;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -15,7 +15,7 @@ public class DataSource {
         this.password = password;
     }
 
-    private Connection getConnection() throws SQLException {
+    protected Connection getConnection() throws SQLException {
         return DriverManager.getConnection(url, username, password);
     };
 }

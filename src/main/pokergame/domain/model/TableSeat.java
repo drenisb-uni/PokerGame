@@ -1,4 +1,4 @@
-package main.pokergame.domain.model;
+package pokergame.domain.model;
 
 import java.util.ArrayList;
 import java.util.List;

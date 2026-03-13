@@ -1,11 +1,11 @@
-package main.pokergame.engine;
+package pokergame.engine;
 
-import main.pokergame.domain.model.Card;
-import main.pokergame.domain.model.Deck;
-import main.pokergame.domain.model.PlayerProfile;
-import main.pokergame.domain.model.TableSeat;
-import main.pokergame.domain.repository.PlayerRepository;
-import main.pokergame.domain.rules.HandResult;
+import pokergame.domain.model.Card;
+import pokergame.domain.model.Deck;
+import pokergame.domain.model.PlayerProfile;
+import pokergame.domain.model.TableSeat;
+import pokergame.domain.repository.PlayerRepository;
+import pokergame.domain.rules.HandResult;
 
 import java.util.ArrayList;
 import java.util.Arrays;

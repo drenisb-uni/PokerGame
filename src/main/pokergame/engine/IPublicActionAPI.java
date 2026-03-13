@@ -1,6 +1,6 @@
-package main.pokergame.engine;
+package pokergame.engine;
 
-import main.pokergame.domain.model.TableSeat;
+import pokergame.domain.model.TableSeat;
 
 public interface IPublicActionAPI {
     void Fold(TableSeat actor);

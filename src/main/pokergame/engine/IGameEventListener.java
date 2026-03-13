@@ -1,7 +1,7 @@
-package main.pokergame.engine;
-import main.pokergame.domain.model.Card;
-import main.pokergame.domain.model.TableSeat;
-import main.pokergame.domain.rules.HandResult;
+package pokergame.engine;
+import pokergame.domain.model.Card;
+import pokergame.domain.model.TableSeat;
+import pokergame.domain.rules.HandResult;
 import java.util.List;
 
 public interface IGameEventListener {

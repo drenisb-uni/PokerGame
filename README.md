@@ -16,13 +16,13 @@ This project aims to transform a monolithic poker implementation into a clean, m
 
 Each class has exactly one responsibility:
 
-| Class -> Responsibility |
-|------------------------|
-| PokerTable -> Store game state |
-| HandRanker -> Evaluate hands |
+| Class -> Responsibility              |
+|--------------------------------------|
+| PokerTable -> Store game state       |
+| HandRanker -> Evaluate hands         |
 | PokerGameEngine -> Control game flow |
-| GameFrame -> Render UI |
-| Controller -> Handle user actions |
+| GameFrame -> Render UI               |
+| Controller -> Handle user actions    |
 
 ---
 

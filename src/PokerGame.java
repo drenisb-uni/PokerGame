@@ -17,14 +17,10 @@ public class PokerGame {
         String dbPass = "11X.gjiaDB";
 
         DataSource ds = new DataSource(dbUrl, dbUser, dbPass);
-
         PlayerRepository repository = new SqlPlayerRepository(ds);
 
-        // logic
         PokerGameEngine engine = new PokerGameEngine(repository);
 
-        // ui
-        // MainUI mainUI = new MainUI();
         ConsoleDebbuger debbuger = new ConsoleDebbuger(engine);
         engine.addObserver(debbuger);
     }

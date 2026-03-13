@@ -1,6 +1,6 @@
-package main.pokergame.domain.repository;
+package pokergame.domain.repository;
 
-import main.pokergame.domain.model.PlayerProfile;
+import pokergame.domain.model.PlayerProfile;
 
 public interface PlayerRepository {
     public PlayerProfile findProfileById(String id);

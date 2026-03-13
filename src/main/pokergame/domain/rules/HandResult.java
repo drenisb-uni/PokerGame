@@ -1,4 +1,4 @@
-package main.pokergame.domain.rules;
+package pokergame.domain.rules;
 import java.util.List;
 
 public class HandResult implements Comparable<HandResult> {
