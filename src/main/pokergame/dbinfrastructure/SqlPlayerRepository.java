@@ -1,24 +1,21 @@
-package main.pokergame.dbinfrastructure;
+package pokergame.dbinfrastructure;
 
-import main.pokergame.domain.model.PlayerProfile;
-import main.pokergame.domain.repository.PlayerRepository;
+import pokergame.domain.model.PlayerProfile;
+import pokergame.domain.repository.PlayerRepository;
 
 import java.sql.*;
 
 public class SqlPlayerRepository implements PlayerRepository {
-    private final String url;
-    private final String username;
-    private final String password;
 
-    public SqlPlayerRepository(String url, String username, String password) {
-        this.url = url;
-        this.username = username;
-        this.password = password;
+    private final DataSource ds;
+
+    public SqlPlayerRepository(DataSource ds) {
+        this.ds = ds;
     }
 
     private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(url, username, password);
-    };
+        return ds.getConnection();
+    }
 
     @Override
     public PlayerProfile findProfileById(String id) {
@@ -27,7 +24,7 @@ public class SqlPlayerRepository implements PlayerRepository {
         try (Connection conn = getConnection();
              PreparedStatement stmt = conn.prepareStatement(query)) {
 
-            stmt.setString(1, username);
+            stmt.setString(1, id);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {

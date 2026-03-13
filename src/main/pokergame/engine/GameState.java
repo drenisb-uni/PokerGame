@@ -1,4 +1,4 @@
-package main.pokergame.engine;
+package pokergame.engine;
 
 public enum GameState {
     WAITING_FOR_PLAYERS,

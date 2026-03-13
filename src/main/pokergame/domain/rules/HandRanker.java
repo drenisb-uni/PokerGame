@@ -1,6 +1,6 @@
-package main.pokergame.domain.rules;
+package pokergame.domain.rules;
 
-import main.pokergame.domain.model.Card;
+import pokergame.domain.model.Card;
 import java.util.*;
 import java.util.stream.Collectors;
 

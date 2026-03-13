@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<VBox alignment="CENTER" spacing="20.0"
+      xmlns="http://javafx.com/javafx/25"
+      xmlns:fx="http://javafx.com/fxml/1"
+      style="-fx-background-color: #2b2b2b;">
+
+    <children>
+        <Label text="Texas Hold'em Poker" textFill="WHITE">
+            <font>
+                <Font name="System Bold" size="36.0" />
+            </font>
+        </Label>
+
+        <Label text="Connecting to Engine..." textFill="#a1a1a1">
+            <font>
+                <Font size="14.0" />
+            </font>
+        </Label>
+
+        <Button text="Join Game Table" prefWidth="150.0" prefHeight="40.0"
+                style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;"/>
+    </children>
+
+</VBox>

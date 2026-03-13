@@ -1,18 +1,18 @@
 package main.pokergame.view;
 
-import main.pokergame.domain.model.Card;
-import main.pokergame.domain.model.PlayerProfile;
-import main.pokergame.domain.model.TableSeat;
-import main.pokergame.domain.rules.HandResult;
-import main.pokergame.engine.GameEventListener;
-import main.pokergame.engine.GameState;
-import main.pokergame.engine.PokerGameEngine;
+import pokergame.domain.model.Card;
+import pokergame.domain.model.PlayerProfile;
+import pokergame.domain.model.TableSeat;
+import pokergame.domain.rules.HandResult;
+import pokergame.engine.IGameEventListener;
+import pokergame.engine.GameState;
+import pokergame.engine.PokerGameEngine;
 
 import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
 
-public class ConsoleDebbuger implements GameEventListener {
+public class ConsoleDebbuger implements IGameEventListener {
     private PokerGameEngine engine;
     private final Scanner scanner = new Scanner(System.in);
     public ConsoleDebbuger(PokerGameEngine engine) {

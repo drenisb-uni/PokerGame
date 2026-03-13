@@ -1,7 +1,7 @@
-package main.pokergame.dbinfrastructure;
+package pokergame.dbinfrastructure;
 
-import main.pokergame.domain.model.PlayerProfile;
-import main.pokergame.domain.repository.PlayerRepository;
+import pokergame.domain.model.PlayerProfile;
+import pokergame.domain.repository.PlayerRepository;
 
 import java.util.HashMap;
 import java.util.Map;

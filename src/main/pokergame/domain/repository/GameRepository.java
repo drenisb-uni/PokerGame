@@ -1,14 +1,14 @@
-package main.pokergame.domain.repository;
+package pokergame.domain.repository;
 
-import main.pokergame.domain.model.Deck;
-import main.pokergame.domain.model.Pot;
-import main.pokergame.domain.model.TableSeat;
+import pokergame.domain.dto.HandHistoryDTO;
+import pokergame.domain.model.Deck;
+import pokergame.domain.model.Pot;
+import pokergame.domain.model.TableSeat;
 
 import java.util.List;
 
 public interface GameRepository {
-
-    public void saveRound(List<TableSeat> tableSeats, Deck deck, Pot pot);
-    public void saveGame();
+    public HandHistoryDTO findHandHistoryById(String id);
+    public void saveGame(HandHistoryDTO game);
 }
 
