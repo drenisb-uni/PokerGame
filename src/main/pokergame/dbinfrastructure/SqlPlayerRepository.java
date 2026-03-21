@@ -1,8 +1,9 @@
 package pokergame.dbinfrastructure;
 
-import pokergame.domain.model.PlayerProfile;
+import pokergame.domain.dto.PlayerProfileDTO;
 import pokergame.domain.repository.PlayerRepository;
 
+import javax.sql.DataSource;
 import java.sql.*;
 
 public class SqlPlayerRepository implements PlayerRepository {
@@ -18,7 +19,7 @@ public class SqlPlayerRepository implements PlayerRepository {
     }
 
     @Override
-    public PlayerProfile findProfileById(String id) {
+    public PlayerProfileDTO findProfileById(String id) {
         String query = "SELECT * FROM player_profiles WHERE id = ?";
 
         try (Connection conn = getConnection();
@@ -38,7 +39,7 @@ public class SqlPlayerRepository implements PlayerRepository {
     }
 
     @Override
-    public PlayerProfile findProfileByUsername(String username) {
+    public PlayerProfileDTO findProfileByUsername(String username) {
         String query = "SELECT * FROM player_profiles WHERE username = ?";
 
         try (Connection conn = getConnection();
@@ -58,16 +59,17 @@ public class SqlPlayerRepository implements PlayerRepository {
     }
 
     @Override
-    public void saveProfile(PlayerProfile profile) {
+    public void saveProfile(PlayerProfileDTO profile) {
         String sql = "INSERT INTO player_profiles (id, username, total_bankroll) VALUES (?, ?, ?) " +
-            "ON DUPLICATE KEY UPDATE total_bankroll = VALUES(total_bankroll)";
+                "ON DUPLICATE KEY UPDATE total_bankroll = VALUES(total_bankroll)";
 
         try (Connection conn = getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setString(1, profile.getId());
-            stmt.setString(2, profile.getUsername());
-            stmt.setInt(3, profile.getTotalBankroll());
+            // Notice we use profile.id() instead of profile.getId() because it's a Record!
+            stmt.setString(1, profile.id());
+            stmt.setString(2, profile.username());
+            stmt.setInt(3, profile.totalBankroll());
 
             stmt.executeUpdate();
 
@@ -76,11 +78,12 @@ public class SqlPlayerRepository implements PlayerRepository {
         }
     }
 
-    private PlayerProfile mapRowToProfile(ResultSet rs) throws SQLException {
-        return new PlayerProfile(
+    private PlayerProfileDTO mapRowToProfile(ResultSet rs) throws SQLException {
+        return new PlayerProfileDTO(
                 rs.getString("id"),
                 rs.getString("username"),
-                rs.getInt("total_bankroll")
+                rs.getInt("total_bankroll"),
+                rs.getTimestamp("created_at").toLocalDateTime() // Convert SQL Timestamp to LocalDateTime
         );
     }
 }

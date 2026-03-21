@@ -1,5 +1,6 @@
 package pokergame.engine;
 
+import pokergame.domain.dto.PlayerProfileDTO;
 import pokergame.domain.model.Card;
 import pokergame.domain.model.Deck;
 import pokergame.domain.model.PlayerProfile;
@@ -32,19 +33,19 @@ public class PokerGameEngine {
 
     //Lobby
 
-    public void save(PlayerProfile profile) {
+    public void save(PlayerProfileDTO profile) {
         playerRepository.saveProfile(profile);
     }
 
     public boolean joinTable(String username, int buyAmount) {
-        PlayerProfile user = playerRepository.findProfileByUsername(username);
+        PlayerProfileDTO user = playerRepository.findProfileByUsername(username);
 
         if (user == null)
             throw new IllegalArgumentException("User not found!");
-        if (user.getTotalBankroll() < buyAmount)
+        if (user.totalBankroll() < buyAmount)
             return false;
 
-        user.setTotalBankroll(user.getTotalBankroll() - buyAmount);
+        user.totalBankroll() ;
         playerRepository.saveProfile(user);
 
         TableSeat newSeat = new TableSeat(user, buyAmount);

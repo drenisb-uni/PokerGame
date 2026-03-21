@@ -1,5 +1,6 @@
 package main.pokergame.view;
 
+import pokergame.domain.dto.PlayerProfileDTO;
 import pokergame.domain.model.Card;
 import pokergame.domain.model.PlayerProfile;
 import pokergame.domain.model.TableSeat;
@@ -8,6 +9,7 @@ import pokergame.engine.IGameEventListener;
 import pokergame.engine.GameState;
 import pokergame.engine.PokerGameEngine;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
@@ -27,7 +29,7 @@ public class ConsoleDebbuger implements IGameEventListener {
         String id = UUID.randomUUID().toString();
         int bankRoll = 1000;
 
-        engine.save(new PlayerProfile(id, username, bankRoll));
+        engine.save(new PlayerProfileDTO(id, username, bankRoll, LocalDateTime.now()));
     }
 
     public void AddPlayerToTable() {
