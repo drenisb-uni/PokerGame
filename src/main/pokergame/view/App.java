@@ -12,12 +12,25 @@ import javafx.stage.Stage;
 
 import javafx.scene.shape.Polygon;
 import javafx.scene.paint.Color;
+import pokergame.GameContext;
+import pokergame.dbinfrastructure.HikariDSProvider;
+import pokergame.dbinfrastructure.SqlPlayerRepository;
+
 import java.net.URL;
 
 public class App extends Application {
+    GameContext gameContext;
 
     @Override
     public void start(Stage stage) throws Exception {
+        String dbUrl = "jdbc:mysql://localhost:3306/poker_db";
+        String dbUser = "root";
+        String dbPass = "11X.gjiaDB";
+
+        HikariDSProvider ds = new HikariDSProvider(dbUrl, dbUser, dbPass);
+        SqlPlayerRepository sqlPlayerRepository = new SqlPlayerRepository((pokergame.dbinfrastructure.HikariDSProvider) ds);
+        GameContext.setPlayerRepository(sqlPlayerRepository);
+
         SceneManager.setMainStage(stage);
         stage.setTitle("Texas Hold'em Poker - MVC Engine");
         stage.setResizable(false);

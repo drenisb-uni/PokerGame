@@ -4,12 +4,12 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-public class DataSource {
+public class HikariDSProvider {
     private final String url;
     private final String username;
     private final String password;
 
-    public DataSource(String url, String username, String password) {
+    public HikariDSProvider(String url, String username, String password) {
         this.url = url;
         this.username = username;
         this.password = password;

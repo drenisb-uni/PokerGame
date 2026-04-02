@@ -3,14 +3,14 @@ package pokergame.dbinfrastructure;
 import pokergame.domain.dto.PlayerProfileDTO;
 import pokergame.domain.repository.PlayerRepository;
 
-import javax.sql.DataSource;
+import pokergame.dbinfrastructure.HikariDSProvider;
 import java.sql.*;
 
 public class SqlPlayerRepository implements PlayerRepository {
 
-    private final DataSource ds;
+    private final HikariDSProvider ds;
 
-    public SqlPlayerRepository(DataSource ds) {
+    public SqlPlayerRepository(HikariDSProvider ds) {
         this.ds = ds;
     }
 
@@ -60,16 +60,21 @@ public class SqlPlayerRepository implements PlayerRepository {
 
     @Override
     public void saveProfile(PlayerProfileDTO profile) {
-        String sql = "INSERT INTO player_profiles (id, username, total_bankroll) VALUES (?, ?, ?) " +
-                "ON DUPLICATE KEY UPDATE total_bankroll = VALUES(total_bankroll)";
+        String sql = "INSERT INTO player_profiles (id, username, email, password_hash, total_bankroll) " +
+                "VALUES (?, ?, ?, ?, ?) " +
+                "ON DUPLICATE KEY UPDATE " +
+                "email = VALUES(email), " +
+                "password_hash = VALUES(password_hash), " +
+                "total_bankroll = VALUES(total_bankroll)";
 
         try (Connection conn = getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            // Notice we use profile.id() instead of profile.getId() because it's a Record!
             stmt.setString(1, profile.id());
             stmt.setString(2, profile.username());
-            stmt.setInt(3, profile.totalBankroll());
+            stmt.setString(3, profile.email());
+            stmt.setString(4, profile.passwordHash());
+            stmt.setInt(5, profile.totalBankroll());
 
             stmt.executeUpdate();
 
@@ -82,8 +87,10 @@ public class SqlPlayerRepository implements PlayerRepository {
         return new PlayerProfileDTO(
                 rs.getString("id"),
                 rs.getString("username"),
+                rs.getString("email"),
+                rs.getString("password_hash"),
                 rs.getInt("total_bankroll"),
-                rs.getTimestamp("created_at").toLocalDateTime() // Convert SQL Timestamp to LocalDateTime
+                rs.getTimestamp("created_at").toLocalDateTime()
         );
     }
 }
