@@ -1,0 +1,122 @@
+@font-face {
+    font-family: 'Galada';
+    src: url('fxml/fonts/Galada/Galada-Regular.ttf'); /* Matches the exact file name */
+}
+
+/* ==========================================================================
+   Base Theme & Typography
+   ========================================================================== */
+.root-pane {
+    -fx-background-color: #265C3B; /* Deep Pine Green */
+}
+
+.title-text {
+    -fx-font-family: "Galada"; /* Keeps the stylized look */
+    -fx-font-size: 46px;
+    -fx-text-fill: #FFFFFF;
+    -fx-padding: 20 0 10 0;
+}
+
+/* ==========================================================================
+   TabPane Styling
+   ========================================================================== */
+.custom-tab-pane {
+    -fx-background-color: transparent;
+}
+
+/* Hide default headers and borders */
+.custom-tab-pane .tab-header-area {
+    -fx-padding: 30 0 0 0;
+}
+.custom-tab-pane .tab-header-background {
+    -fx-background-color: #235737;
+}
+.custom-tab-pane .tab-content-area {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+}
+
+/* Individual Tab Styling */
+.custom-tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-padding: 5 30 10 30;
+    -fx-cursor: hand;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+
+/* Unselected Tab Text */
+.custom-tab-pane .tab-label {
+    -fx-text-fill: #B0C9B9; /* Light faded green */
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+/* Selected Tab Styling (Orange Underline) */
+.custom-tab-pane .tab:selected {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent #F86236 transparent; /* Orange bottom border */
+    -fx-border-width: 0 0 3 0;
+}
+
+/* Selected Tab Text */
+.custom-tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 18px;
+}
+
+/* Focus ring removal */
+.custom-tab-pane .tab:focused {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* ==========================================================================
+   Input Fields
+   ========================================================================== */
+.input-field {
+    -fx-background-color: #4C7D5F; /* Transparent-looking green */
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: #B0C9B9;
+    -fx-background-radius: 20; /* Pill shape */
+    -fx-padding: 12 20 12 20;
+    -fx-font-size: 14px;
+}
+
+.input-field:focused {
+    -fx-background-radius: 10; /* Pill shape */
+    -fx-background-color: #558769;
+}
+
+/* ==========================================================================
+   Labels & Errors
+   ========================================================================== */
+.error-label {
+    -fx-text-fill: #FFD15C; /* Using the yellow from the template to stand out */
+    -fx-font-size: 13px;
+    -fx-font-weight: 400;
+    -fx-padding: -5 0 0 0; /* Pulls it slightly closer to the input field */
+}
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+.primary-button, .secondary-button {
+    -fx-background-color: #F86236; /* Coral/Orange */
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 25; /* Pill shape */
+    -fx-padding: 12 20 12 20;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 10, 0, 0, 4);
+}
+
+.primary-button:hover, .secondary-button:hover {
+    -fx-background-color: #FF774D;
+}
+
+.primary-button:pressed, .secondary-button:pressed {
+    -fx-background-color: #E0532B;
+    -fx-effect: none; /* Flattens the button visually on click */
+}

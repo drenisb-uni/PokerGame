@@ -9,10 +9,15 @@ public class HikariDSProvider {
     private final String username;
     private final String password;
 
-    public HikariDSProvider(String url, String username, String password) {
-        this.url = url;
-        this.username = username;
-        this.password = password;
+
+    private final String dbUrl = "jdbc:mysql://localhost:3306/poker_db";
+    private final String dbUser = "root";
+    private final String dbPass = "11X.gjiaDB";
+
+    public HikariDSProvider() {
+        this.url = dbUrl;
+        this.username = dbUser;
+        this.password = dbPass;
     }
 
     protected Connection getConnection() throws SQLException {

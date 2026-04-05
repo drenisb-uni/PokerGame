@@ -5,14 +5,14 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<VBox fx:controller="pokergame.view.controllers.GameController"
-      alignment="CENTER" spacing="20.0"
-      xmlns="http://javafx.com/javafx/25"
-      xmlns:fx="http://javafx.com/fxml/1"
-      style="-fx-background-color: #2b2b2b;">
+<VBox fx:controller="pokergame.view.controllers.LobbyController"
+      prefHeight="956.0" prefWidth="440.0"
+      stylesheets="@css/style.css" styleClass="root-pane"
+      xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1">
 
     <children>
-        <Label text="Texas Hold'em Poker" textFill="WHITE">
+        <Label text="oppo-ker" textFill="WHITE">
             <font>
                 <Font name="System Bold" size="36.0" />
             </font>

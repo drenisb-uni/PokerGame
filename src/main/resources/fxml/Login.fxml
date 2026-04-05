@@ -9,60 +9,61 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
-<?import javafx.scene.text.Font?>
 
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.image.Image?>
 <StackPane fx:controller="pokergame.view.controllers.LoginController"
-           prefHeight="600.0" prefWidth="800.0"
-           style="-fx-background-color: #1a1a1a;"
+           prefHeight="956.0" prefWidth="440.0"
+           stylesheets="@css/style.css" styleClass="root-pane"
            xmlns="http://javafx.com/javafx/21"
            xmlns:fx="http://javafx.com/fxml/1">
 
     <children>
-        <VBox alignment="CENTER" maxWidth="400.0" spacing="20.0">
+        <VBox alignment="TOP_CENTER" maxWidth="400.0" spacing="20.0">
             <children>
 
-                <Label text="Texas Hold'em" textFill="#2e8b57">
-                    <font><Font name="System Bold" size="36.0" /></font>
-                </Label>
 
-                <TabPane tabClosingPolicy="UNAVAILABLE"
-                         style="-fx-background-color: #2b2b2b; -fx-background-radius: 10; -fx-border-color: #2e8b57; -fx-border-radius: 10; -fx-border-width: 2;">
+                <TabPane tabClosingPolicy="UNAVAILABLE" styleClass="custom-tab-pane">
 
                     <tabs>
-                        <Tab text="Login">
+                        <Tab text="You Back">
                             <content>
-                                <VBox spacing="15.0" alignment="CENTER">
-                                    <padding><Insets top="30" right="30" bottom="30" left="30"/></padding>
+                                <VBox spacing="15.0" alignment="TOP_CENTER">
+                                    <padding><Insets top="20" right="30" bottom="20" left="30"/></padding>
 
-                                    <TextField fx:id="loginUsername" promptText="Username" style="-fx-font-size: 14px; -fx-padding: 8;"/>
-                                    <PasswordField fx:id="loginPassword" promptText="Password" style="-fx-font-size: 14px; -fx-padding: 8;"/>
+                                    <TextField fx:id="loginUsername" promptText="Username" styleClass="input-field" />
+                                    <PasswordField fx:id="loginPassword" promptText="Password" styleClass="input-field" />
 
-                                    <Label fx:id="loginErrorLabel" textFill="#ff4c4c" visible="false" />
+                                    <Label fx:id="loginErrorLabel" visible="false" styleClass="error-label" />
 
-                                    <Button text="Login" onAction="#handleLogin" maxWidth="1.7976931348623157E308"
-                                            style="-fx-background-color: #2e8b57; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10; -fx-cursor: hand;"/>
+                                    <Button text="Login" onAction="#handleLogin" maxWidth="1.7976931348623157E308" styleClass="primary-button" />
                                 </VBox>
                             </content>
                         </Tab>
 
-                        <Tab text="Register">
+                        <Tab text="First Time">
                             <content>
-                                <VBox spacing="15.0" alignment="CENTER">
-                                    <padding><Insets top="30" right="30" bottom="30" left="30"/></padding>
+                                <VBox spacing="15.0" alignment="TOP_CENTER">
+                                    <padding><Insets top="20" right="30" bottom="20" left="30"/></padding>
 
-                                    <TextField fx:id="regUsername" promptText="Choose a Username" style="-fx-font-size: 14px; -fx-padding: 8;"/>
-                                    <TextField fx:id="regEmail" promptText="Email Address" style="-fx-font-size: 14px; -fx-padding: 8;"/>
-                                    <PasswordField fx:id="regPassword" promptText="Create Password" style="-fx-font-size: 14px; -fx-padding: 8;"/>
+                                    <TextField fx:id="regUsername" promptText="Choose a Username" styleClass="input-field" />
+                                    <TextField fx:id="regEmail" promptText="Email Address" styleClass="input-field" />
+                                    <PasswordField fx:id="regPassword" promptText="Create Password" styleClass="input-field" />
+                                    <PasswordField fx:id="regRepeatPassword" promptText="Repeat Password" styleClass="input-field" />
 
-                                    <Label fx:id="regErrorLabel" textFill="#ff4c4c" visible="false" />
+                                    <Label fx:id="regErrorLabel" visible="false" styleClass="error-label" />
 
-                                    <Button text="Create Account" onAction="#handleRegister" maxWidth="1.7976931348623157E308"
-                                            style="-fx-background-color: #20603d; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10; -fx-cursor: hand;"/>
+                                    <Button text="Create Account" onAction="#handleRegister" maxWidth="1.7976931348623157E308" styleClass="secondary-button" />
                                 </VBox>
                             </content>
                         </Tab>
                     </tabs>
                 </TabPane>
+                <ImageView fitHeight="150.0" fitWidth="300.0" pickOnBounds="true" preserveRatio="false">
+                    <image>
+                        <Image url="@../images/SUITS.png" />
+                    </image>
+                </ImageView>
             </children>
         </VBox>
     </children>

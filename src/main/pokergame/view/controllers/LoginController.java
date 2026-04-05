@@ -1,6 +1,7 @@
 package pokergame.view.controllers;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
+import javafx.scene.input.MouseEvent;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
@@ -23,6 +24,7 @@ public class LoginController {
     @FXML private TextField regUsername;
     @FXML private TextField regEmail;
     @FXML private PasswordField regPassword;
+    @FXML private PasswordField regRepeatPassword;
     @FXML private Label regErrorLabel;
 
     @FXML
@@ -69,6 +71,7 @@ public class LoginController {
         String username = regUsername.getText().trim();
         String email = regEmail.getText().trim();
         String password = regPassword.getText();
+        String repeatPassword = regRepeatPassword.getText();
 
 
         if (username.isEmpty() || email.isEmpty() || password.isEmpty()) {
@@ -78,6 +81,11 @@ public class LoginController {
 
         if (password.length() < 6) {
             showError(regErrorLabel, "Password must be at least 6 characters.");
+            return;
+        }
+
+        if (repeatPassword.equals(password)) {
+            showError(regErrorLabel, "Passwords don't match.");
             return;
         }
 
@@ -100,9 +108,14 @@ public class LoginController {
             e.printStackTrace();
         }
     }
-
+    @FXML
+    public void switchToSignup(MouseEvent event) {
+        pokergame.view.SceneManager.switchScene("Signup.fxml");
+    }
     private void showError(Label errorLabel, String message) {
         errorLabel.setText(message);
         errorLabel.setVisible(true);
     }
+
+
 }
