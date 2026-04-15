@@ -79,6 +79,11 @@ public class LoginController {
             return;
         }
 
+        if (!email.contains("@")) {
+            showError(regErrorLabel, "Email address is invalid.!");
+            return;
+        }
+
         if (password.length() < 6) {
             showError(regErrorLabel, "Password must be at least 6 characters.");
             return;
