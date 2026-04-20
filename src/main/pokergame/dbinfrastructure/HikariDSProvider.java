@@ -15,7 +15,7 @@ public class HikariDSProvider {
     private final String dbPass = "11X.gjiaDB";
 
     public HikariDSProvider() {
-        this.url = "jdbc:mysql://localhost:3306/poker_db";
+        this.url = dbUrl;//"jdbc:mysql://localhost:3306/poker_db";
         this.username = "root";
         this.password = "11X.gjiaDB";
     }

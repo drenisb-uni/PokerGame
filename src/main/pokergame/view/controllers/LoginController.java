@@ -56,6 +56,7 @@ public class LoginController {
                 // TODO: Store 'userProfile' in your GameContext so the Lobby knows who is playing!
 
                 SceneManager.switchScene("Lobby.fxml");
+
             } else {
                 showError(loginErrorLabel, "Invalid username or password.");
             }
@@ -89,7 +90,7 @@ public class LoginController {
             return;
         }
 
-        if (repeatPassword.equals(password)) {
+        if (!repeatPassword.equals(password)) {
             showError(regErrorLabel, "Passwords don't match.");
             return;
         }
