@@ -1,12 +1,11 @@
 package pokergame.dbinfrastructure;
 
 import pokergame.domain.dto.PlayerProfileDTO;
-import pokergame.domain.repository.PlayerRepository;
+import pokergame.domain.repository.IPlayerRepository;
 
-import pokergame.dbinfrastructure.HikariDSProvider;
 import java.sql.*;
 
-public class SqlPlayerRepository implements PlayerRepository {
+public class SqlPlayerRepository implements IPlayerRepository {
 
     private final HikariDSProvider ds;
 

@@ -1,19 +1,17 @@
 package pokergame;
 
-import javafx.stage.Stage;
-import pokergame.dbinfrastructure.SqlPlayerRepository;
-import pokergame.domain.repository.PlayerRepository;
+import pokergame.domain.repository.IPlayerRepository;
 import pokergame.engine.PokerGameEngine;
 
 public class GameContext {
-    private static PlayerRepository playerRepository;
+    private static IPlayerRepository playerRepository;
     private static PokerGameEngine pokerGameEngine;
 
-    public static void setPlayerRepository(PlayerRepository repo) {
+    public static void setPlayerRepository(IPlayerRepository repo) {
         playerRepository = repo;
     }
 
-    public static PlayerRepository getPlayerRepository() {
+    public static IPlayerRepository getPlayerRepository() {
         if (playerRepository == null) {
             throw new IllegalStateException("Repository not initialized!");
         }

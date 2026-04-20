@@ -6,13 +6,13 @@
 <?import javafx.scene.text.Font?>
 
 <VBox fx:controller="pokergame.view.controllers.LobbyController"
-      prefHeight="956.0" prefWidth="440.0"
+      prefHeight="600.0" prefWidth="800.0"
       stylesheets="@css/style.css" styleClass="root-pane"
       xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1">
 
     <children>
-        <Label text="oppo-ker" textFill="WHITE">
+        <Label text="Poker Game" textFill="WHITE">
             <font>
                 <Font name="System Bold" size="36.0" />
             </font>
@@ -24,7 +24,7 @@
             </font>
         </Label>
 
-        <Button text="Join Game Table" prefWidth="150.0" prefHeight="40.0"
+        <Button onAction="#handleJoinTable" text="Join Game Table" prefWidth="150.0" prefHeight="40.0"
                 style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;"/>
     </children>
 

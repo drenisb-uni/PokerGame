@@ -3,18 +3,15 @@ package pokergame.engine;
 import pokergame.domain.dto.PlayerProfileDTO;
 import pokergame.domain.model.Card;
 import pokergame.domain.model.Deck;
-import pokergame.domain.model.PlayerProfile;
 import pokergame.domain.model.TableSeat;
-import pokergame.domain.repository.PlayerRepository;
+import pokergame.domain.repository.IPlayerRepository;
 import pokergame.domain.rules.HandResult;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class PokerGameEngine {
-    private PlayerRepository playerRepository;
+    private IPlayerRepository playerRepository;
     private ArrayList<IGameEventListener> observers = new ArrayList<>();
 
     private GameState currentState;
@@ -25,7 +22,7 @@ public class PokerGameEngine {
     private int dealerIndex = 0;
     private int currentPlayerIndex = 0;
 
-    public PokerGameEngine(PlayerRepository playerRepository) {
+    public PokerGameEngine(IPlayerRepository playerRepository) {
         this.playerRepository = playerRepository;
         this.deck = new Deck();
         this.currentState = GameState.WAITING_FOR_PLAYERS;

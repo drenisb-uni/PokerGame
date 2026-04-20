@@ -122,11 +122,11 @@ public class HandRanker {
     }
 
     private HandResult checkTwoPair(List<Card> cards) {
-        return checkNOfAKind(cards, 3, HandType.TWO_PAIR);
+        return checkNOfAKind(cards, 2, HandType.TWO_PAIR);
     }
 
     private HandResult checkOnePair(List<Card> cards) {
-        return checkNOfAKind(cards, 2, HandType.ONE_PAIR);
+        return checkNOfAKind(cards, 1, HandType.ONE_PAIR);
     }
 
     private HandResult checkNOfAKind(List<Card> cards, int count, HandType type) {

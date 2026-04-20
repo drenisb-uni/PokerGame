@@ -9,7 +9,7 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import pokergame.GameContext;
 import pokergame.domain.dto.PlayerProfileDTO;
-import pokergame.domain.repository.PlayerRepository;
+import pokergame.domain.repository.IPlayerRepository;
 import pokergame.view.SceneManager;
 
 import java.time.LocalDateTime;
@@ -33,14 +33,14 @@ public class LoginController {
         String password = loginPassword.getText();
 
         if (username.isEmpty() || password.isEmpty()) {
-            showError(loginErrorLabel, "Please fill in all fields.");
+            showError(loginErrorLabel, "All fields are required!");
             return;
         }
 
         System.out.println("Attempting to log in user: " + username);
 
         try {
-            PlayerRepository repo = GameContext.getPlayerRepository();
+            IPlayerRepository repo = GameContext.getPlayerRepository();
             PlayerProfileDTO userProfile = repo.findProfileByUsername(username);
 
             if (userProfile == null) {
@@ -103,7 +103,7 @@ public class LoginController {
         );
 
         try {
-            PlayerRepository repo = GameContext.getPlayerRepository();
+            IPlayerRepository repo = GameContext.getPlayerRepository();
             repo.saveProfile(newUser);
             System.out.println("User registered successfully!");
             SceneManager.switchScene("Lobby.fxml");
