@@ -120,3 +120,43 @@
     -fx-background-color: #E0532B;
     -fx-effect: none; /* Flattens the button visually on click */
 }
+
+/* --- Lobby Specific Styles --- */
+
+/* Giant Play Now Button */
+.massive-btn {
+    -fx-font-size: 28px;
+    -fx-padding: 15px 50px;
+    -fx-background-radius: 40px;
+}
+
+/* Subtitle for the tables section */
+.subtitle-text {
+    -fx-text-fill: white;
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+}
+
+/* The Table Card Container */
+.table-card {
+    -fx-background-color: #2b2b2b;
+    -fx-padding: 25px;
+    -fx-background-radius: 12px;
+    -fx-border-color: #2e8b57;
+    -fx-border-radius: 12px;
+    -fx-border-width: 2px;
+    -fx-min-width: 220px;
+    -fx-alignment: center-left; /* Aligns text left, but keeps card format */
+}
+
+/* Card Typography */
+.card-title {
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.card-detail {
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 14px;
+}

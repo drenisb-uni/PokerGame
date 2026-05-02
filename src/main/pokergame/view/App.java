@@ -23,7 +23,7 @@ public class App extends Application {
         SceneManager.setMainStage(stage);
         stage.setTitle("Texas Hold'em Poker - MVC Engine");
         stage.setResizable(false);
-        SceneManager.switchScene("Login.fxml");
+        SceneManager.switchScene("Welcome.fxml");
     }
 
     public static void main(String[] args) {
