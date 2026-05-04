@@ -114,7 +114,6 @@ public class GameController {
             "/images/A-H.png",
             "/images/A-D.png",
             "/images/A-S.png"
-            // Add as many card paths as you have!
     ));
 
     public void dealRandomCards() {

@@ -82,6 +82,27 @@ public class SqlPlayerRepository implements IPlayerRepository {
         }
     }
 
+    @Override
+    public void updateProfile(PlayerProfileDTO profile) {
+        String sql = "UPDATE players SET username = ?, email = ?, password_hash = ?, total_bankroll = ? WHERE id = ?";
+
+        try (Connection conn = getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, profile.username());
+            stmt.setString(2, profile.email());
+            stmt.setString(3, profile.passwordHash());
+            stmt.setInt(4, profile.totalBankroll());
+
+            stmt.setString(5, profile.id());
+
+            stmt.executeUpdate();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
     private PlayerProfileDTO mapRowToProfile(ResultSet rs) throws SQLException {
         return new PlayerProfileDTO(
                 rs.getString("id"),
