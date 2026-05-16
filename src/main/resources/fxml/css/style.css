@@ -160,3 +160,13 @@
     -fx-text-fill: #cccccc;
     -fx-font-size: 14px;
 }
+
+.player-box {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+    -fx-padding: 15px;
+    -fx-background-radius: 10px;
+    -fx-border-color: #555555;
+    -fx-border-radius: 10px;
+    -fx-border-width: 2px;
+    -fx-min-width: 120px;
+}

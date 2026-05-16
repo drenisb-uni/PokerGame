@@ -25,8 +25,24 @@ public class TableSeat {
     }
 
     public String getUsername() { return this.profile.username(); }
+
     public int getChipsOnTable() { return this.chipsOnTable; }
+
+    public void addChipsOnTable(int chipsOnTable) {
+        this.chipsOnTable += chipsOnTable;
+    }
+
     public List<Card> getHoleCards() { return this.holeCards; }
+
+    public void setHoleCards(Card cards){ holeCards.add(cards); }
+
+    public void setFolded(boolean folded) { this.isFolded = folded; }
+
     public boolean isFolded() { return this.isFolded; }
-    private int getCurrentRoundBet() { return this.currentRoundBet; }
+
+    public void setRoundBet(int roundBet) { this.currentRoundBet = roundBet; }
+
+    public int getCurrentRoundBet() { return this.currentRoundBet; }
+
+    public void clearCards(){ holeCards.clear(); }
 }
