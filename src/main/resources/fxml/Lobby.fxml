@@ -2,30 +2,60 @@
 
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
-<?import javafx.scene.text.Font?>
 
-<VBox fx:controller="pokergame.view.controllers.LobbyController"
-      prefHeight="600.0" prefWidth="800.0"
-      stylesheets="@css/style.css" styleClass="root-pane"
-      xmlns="http://javafx.com/javafx/21"
-      xmlns:fx="http://javafx.com/fxml/1">
+<BorderPane fx:controller="pokergame.view.controllers.LobbyController"
+            prefHeight="639.0" prefWidth="1366.0"
+            stylesheets="@css/style.css" styleClass="root-pane"
+            xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1">
 
-    <children>
-        <Label text="Poker Game" textFill="WHITE">
-            <font>
-                <Font name="System Bold" size="36.0" />
-            </font>
-        </Label>
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="20.0" style="-fx-padding: 20 40 20 40;">
+            <Label text="Texas Hold'em Lobby" styleClass="title-text" />
 
-        <Label text="Connecting to Engine..." textFill="#a1a1a1">
-            <font>
-                <Font size="14.0" />
-            </font>
-        </Label>
+            <Region HBox.hgrow="ALWAYS" />
 
-        <Button onAction="#handleJoinTable" text="Join Game Table" prefWidth="150.0" prefHeight="40.0"
-                style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;"/>
-    </children>
+            <Button text="My Profile" onAction="#handleProfile" styleClass="secondary-button" />
+        </HBox>
+    </top>
 
-</VBox>
+    <center>
+        <VBox alignment="CENTER" spacing="15.0">
+            <Button text="Play Now" onAction="#handlePlayNow" styleClass="primary-button, massive-btn" />
+            <Label text="Quickly join the next available game" style="-fx-text-fill: #aaaaaa; -fx-font-size: 14px;" />
+        </VBox>
+    </center>
+
+    <bottom>
+        <VBox spacing="20.0" style="-fx-padding: 0 40 40 40;">
+            <Label text="Available Tables" styleClass="subtitle-text" />
+
+            <HBox spacing="25.0" alignment="CENTER_LEFT">
+
+                <VBox styleClass="table-card" spacing="12.0">
+                    <Label text="Host: Daniel Negreanu" styleClass="card-title" />
+                    <Label text="Starting Pot: $500" styleClass="card-detail" />
+                    <Button text="Join Table" onAction="#handleJoinTable" styleClass="primary-button" maxWidth="1.7976931348623157E308" />
+                </VBox>
+
+                <VBox styleClass="table-card" spacing="12.0">
+                    <Label text="Host: Phil Ivey" styleClass="card-title" />
+                    <Label text="Starting Pot: $10,000" styleClass="card-detail" />
+                    <Button text="Join Table" onAction="#handleJoinTable" styleClass="primary-button" maxWidth="1.7976931348623157E308" />
+                </VBox>
+
+                <VBox styleClass="table-card" spacing="12.0">
+                    <Label text="Host: Local Game" styleClass="card-title" />
+                    <Label text="Starting Pot: $50" styleClass="card-detail" />
+                    <Button text="Join Table" onAction="#handleJoinTable" styleClass="primary-button" maxWidth="1.7976931348623157E308" />
+                </VBox>
+
+            </HBox>
+        </VBox>
+    </bottom>
+
+</BorderPane>

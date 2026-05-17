@@ -44,8 +44,44 @@ public class HandRanker {
         return new HandResult(HandType.HIGH_CARD, top5Cards);
     }
 
-    private HandResult checkStraightFlush(List<Card> allCards) {
-        //najdit tjeter
+    private HandResult checkStraightFlush(List<Card> cards) {
+        // 1. Group all cards by their suit
+        Map<String, List<Card>> suitedCards = cards.stream()
+                .collect(Collectors.groupingBy(Card::getSuit));
+
+        // 2. Loop through the suits to see if we have a flush
+        for (List<Card> suitList : suitedCards.values()) {
+            if (suitList.size() >= 5) {
+
+                // 3. We have a flush! Extract the unique values of THESE specific suited cards
+                List<Integer> flushValues = suitList.stream()
+                        .map(Card::getValue)
+                        .distinct()
+                        .sorted(Comparator.reverseOrder())
+                        .collect(Collectors.toList());
+
+                // 4. Standard Straight check (e.g., J-10-9-8-7)
+                for (int i = 0; i <= flushValues.size() - 5; i++) {
+                    int current = flushValues.get(i);
+                    // If the card 4 spots down the list is exactly 4 less than the current card, it's a straight!
+                    if (flushValues.get(i + 4) == current - 4) {
+                        // The 'current' card is the highest card of the straight flush
+                        return new HandResult(HandType.STRAIGHT_FLUSH, Collections.singletonList(current));
+                    }
+                }
+
+                // 5. The "Wheel" Edge Case: A-5-4-3-2 (where Ace is valued at 14)
+                if (flushValues.contains(14) && flushValues.contains(5) &&
+                        flushValues.contains(4) && flushValues.contains(3) &&
+                        flushValues.contains(2)) {
+
+                    // In a 5-high straight flush, the 5 is considered the highest card for ranking purposes
+                    return new HandResult(HandType.STRAIGHT_FLUSH, Collections.singletonList(5));
+                }
+            }
+        }
+
+        // No straight flush found
         return null;
     }
 

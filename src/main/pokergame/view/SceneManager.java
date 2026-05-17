@@ -25,7 +25,7 @@ public class SceneManager {
 
             Parent root = FXMLLoader.load(fxmlLocation);
 
-            Scene newScene = new Scene(root, 440-100, 956-300);
+            Scene newScene = new Scene(root, 1366, 639);
 
             mainStage.setScene(newScene);
             mainStage.show();

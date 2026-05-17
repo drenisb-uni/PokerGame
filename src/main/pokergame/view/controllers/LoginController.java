@@ -53,7 +53,7 @@ public class LoginController {
             if (result.verified) {
                 System.out.println("Login successful for: " + username);
 
-                // TODO: Store 'userProfile' in your GameContext so the Lobby knows who is playing!
+                GameContext.setPlayerProfile(userProfile);
 
                 SceneManager.switchScene("Lobby.fxml");
 
