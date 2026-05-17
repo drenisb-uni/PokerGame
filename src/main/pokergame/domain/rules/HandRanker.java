@@ -43,7 +43,7 @@ public class HandRanker {
 
         return new HandResult(HandType.HIGH_CARD, top5Cards);
     }
-    
+
     private HandResult checkStraightFlush(List<Card> cards) {
         // 1. Group all cards by their suit
         Map<String, List<Card>> suitedCards = cards.stream()

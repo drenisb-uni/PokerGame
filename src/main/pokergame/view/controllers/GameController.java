@@ -262,10 +262,25 @@ public class GameController implements IGameEventListener {
     public void onHandResult(List<TableSeat> winners, HandResult winningHand, int potSize) {
         Platform.runLater(() -> {
             StringBuilder winMsg = new StringBuilder();
+
             for (TableSeat winner : winners) {
                 winMsg.append(winner.getUsername()).append(" ");
+
+                // 1. Grab the specific UI controller for this winning player
+                PlayerSeatController controller = seatControllerMap.get(winner.getUsername());
+
+                // 2. Fetch their cards and reveal them!
+                // (Assuming your TableSeat method is called getHoleCards or getCards)
+                List<Card> cards = winner.getHoleCards();
+                if (controller != null && cards != null && cards.size() == 2) {
+                    controller.revealCards(cards.get(0), cards.get(1));
+                }
             }
-            winMsg.append("won $").append(potSize);
+
+            // Bonus: Added the winning hand type (e.g., "won $500 with FLUSH")
+            winMsg.append("won $").append(potSize)
+                    .append(" with a ").append(winningHand.getType().toString().replace("_", " "));
+
             chipsInfoLabel.setText(winMsg.toString());
         });
     }
