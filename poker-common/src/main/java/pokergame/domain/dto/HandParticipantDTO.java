@@ -2,7 +2,7 @@ package pokergame.domain.dto;
 
 public record HandParticipantDTO(
         String handId,
-        String playerId,
+        String playerUsername,
         int seatIndex,
         String holeCards,
         int startChips,
@@ -17,7 +17,7 @@ public record HandParticipantDTO(
 
         return new HandParticipantDTO(
                 this.handId,
-                this.playerId,
+                this.playerUsername,
                 this.seatIndex,
                 "HIDDEN",
                 this.startChips,

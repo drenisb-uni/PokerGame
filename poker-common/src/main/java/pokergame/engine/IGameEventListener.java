@@ -16,4 +16,5 @@ public interface IGameEventListener {
     void onPlayerTurn(String username, int amountToCall);
     void onPlayerAction(HandActionDTO action);
     void onHandResult(List<String> winnerUsernames, HandResult winnerHand, int potSize);
+
 }

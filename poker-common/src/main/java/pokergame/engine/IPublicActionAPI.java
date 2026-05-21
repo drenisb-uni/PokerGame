@@ -1,9 +1,9 @@
 package pokergame.engine;
 
 public interface IPublicActionAPI {
-    void Fold(TableSeat actor);
+    void Fold(String actorUsername);
 
-    void Call(TableSeat actor);
+    void Call(String actorUsername);
 
-    void Raise(TableSeat actor, int amount);
+    void Raise(String actorUsername, int amount);
 }

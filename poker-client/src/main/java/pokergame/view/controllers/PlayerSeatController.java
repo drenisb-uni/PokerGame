@@ -4,6 +4,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import pokergame.domain.dto.HandParticipantDTO;
 import pokergame.domain.model.Card;
 import pokergame.domain.model.TableSeat;
 
@@ -17,14 +18,11 @@ public class PlayerSeatController {
 
     private static final String CARD_BACK = "/images/back.png"; // Make sure you have a card back image!
 
-    /**
-     * Initial setup for the player's seat
-     */
-    public void setup(TableSeat seat) {
-        usernameLabel.setText(seat.getUsername());
-        updateChips(seat.getChipsOnTable());
+    public void setup(HandParticipantDTO seat) {
+        usernameLabel.setText(seat.playerUsername());
+        updateChips(seat.startChips());
         actionLabel.setText("");
-        showCardBacks(); // Hide cards by default
+        showCardBacks();
     }
 
     public void updateChips(int amount) {
@@ -35,9 +33,6 @@ public class PlayerSeatController {
         actionLabel.setText(action);
     }
 
-    /**
-     * Displays the actual card faces (Used for the local player or at Showdown)
-     */
     public void revealCards(Card c1, Card c2) {
         holeCard1.setImage(new Image(getClass().getResource(getImagePath(c1)).toExternalForm()));
         holeCard2.setImage(new Image(getClass().getResource(getImagePath(c2)).toExternalForm()));
@@ -65,5 +60,9 @@ public class PlayerSeatController {
             default -> String.valueOf(val);
         };
         return "/images/" + valStr + "-" + suit + ".png";
+    }
+
+    public int getCurrentChips() {
+        return 0;
     }
 }

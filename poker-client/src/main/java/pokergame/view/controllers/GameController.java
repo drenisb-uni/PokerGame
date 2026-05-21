@@ -13,6 +13,8 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import pokergame.GameContext;
+import pokergame.domain.dto.HandActionDTO;
+import pokergame.domain.dto.HandParticipantDTO;
 import pokergame.domain.model.Card;
 import pokergame.domain.model.TableSeat;
 import pokergame.domain.rules.HandResult;
@@ -21,26 +23,19 @@ import pokergame.engine.IGameEventListener;
 import pokergame.engine.PokerGameEngine;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class GameController implements IGameEventListener {
 
-    private String currentActivePlayerUsername;
-
-    private Map<String, PlayerSeatController> seatControllerMap = new HashMap<>();
-
     // --- FXML INJECTIONS ---
-
     @FXML private ImageView commCard1, commCard2, commCard3, commCard4, commCard5;
     private ImageView[] communityCards;
-
     @FXML private FlowPane playersContainer;
-
     @FXML private Label chipsInfoLabel;
     @FXML private Label gameStatusLabel;
-
     @FXML private Button foldButton;
     @FXML private Button callButton;
     @FXML private Button raiseButton;
@@ -50,10 +45,13 @@ public class GameController implements IGameEventListener {
     @FXML private TextField raiseAmountInput;
 
     // --- GAME STATE VARIABLES ---
-
     private PokerGameEngine engine;
+    private Map<String, PlayerSeatController> seatControllerMap = new HashMap<>();
+    private String currentActivePlayerUsername;
     private int currentCommunityCardIndex = 0;
     private int currentAmountToCall = 0;
+    private int localPotSize = 0;
+
 
     @FXML
     public void initialize() {
@@ -189,6 +187,8 @@ public class GameController implements IGameEventListener {
                 case HAND_OVER:
                     disableBettingControls();
                     break;
+                default:
+                    break;
             }
         });
     }
@@ -211,107 +211,88 @@ public class GameController implements IGameEventListener {
         });
     }
 
-//    @Override
-//    public void onPlayerTurn(TableSeat activePlayer, int amountToCall) {
-//        Platform.runLater(() -> {
-//            if (activePlayer.getUsername().equals(getLocalUsername())) {
-//                this.currentAmountToCall = amountToCall;
-//                enableBettingControls();
-//
-//                callButton.setText(amountToCall == 0 ? "Check" : "Call $" + amountToCall);
-//                updateChipsDisplay(activePlayer.getChipsOnTable(), engine.getPotSize()); // Assuming you add getPotSize()
-//            } else {
-//                disableBettingControls();
-//                chipsInfoLabel.setText("Waiting for " + activePlayer.getUsername() + " to act...");
-//            }
-//        });
-//    }
-
     @Override
-    public void onPlayerTurn(TableSeat activePlayer, int amountToCall) {
+    public void onPlayerTurn(String username, int amountToCall) {
         Platform.runLater(() -> {
-            // 1. Save whoever the engine is waiting for
-            this.currentActivePlayerUsername = activePlayer.getUsername();
-            this.currentAmountToCall = amountToCall;
+            if (username.equals(getLocalUsername())) {
+                this.currentAmountToCall = amountToCall;
+                enableBettingControls();
 
-            // 2. ALWAYS enable the buttons so you can test!
-            enableBettingControls();
+                callButton.setText(amountToCall == 0 ? "Check" : "Call $" + amountToCall);
 
-            // 3. Update the UI so you know who you are acting as
-            callButton.setText(amountToCall == 0 ? "Check" : "Call $" + amountToCall);
-            gameStatusLabel.setText("WAITING ON: " + currentActivePlayerUsername);
-
-            // Bonus: Highlight the active player visually!
-            chipsInfoLabel.setText("You are currently controlling: " + currentActivePlayerUsername);
-        });
-    }
-
-    @Override
-    public void onPlayerAction(TableSeat player, String actionType, int amount) {
-        Platform.runLater(() -> {
-            PlayerSeatController controller = seatControllerMap.get(player.getUsername());
-            if (controller != null) {
-                controller.setAction(actionType + (amount > 0 ? " $" + amount : ""));
-                controller.updateChips(player.getChipsOnTable());
+                // Look up the local seat controller to get the player's chip view
+                PlayerSeatController controller = seatControllerMap.get(username);
+                int currentChips = (controller != null) ? controller.getCurrentChips() : 0;
+                updateChipsDisplay(currentChips, this.localPotSize);
+            } else {
+                disableBettingControls();
+                chipsInfoLabel.setText("Waiting for " + username + " to act...");
             }
         });
     }
 
     @Override
-    public void onHandResult(List<TableSeat> winners, HandResult winningHand, int potSize) {
+    public void onPlayerAction(HandActionDTO action) {
+        Platform.runLater(() -> {
+            PlayerSeatController controller = seatControllerMap.get(action.playerId());
+            if (controller != null) {
+                // Update the text action tag (e.g., "Raise $50")
+                controller.setAction(action.actionType() + (action.amount() > 0 ? " $" + action.amount() : ""));
+
+                // Track total pot locally based on player investments
+                if (action.amount() > 0) {
+                    this.localPotSize += action.amount();
+                }
+            }
+        });
+    }
+
+    @Override
+    public void onHandResult(List<String> winnerUsernames, HandResult winnerHand, int potSize) {
         Platform.runLater(() -> {
             StringBuilder winMsg = new StringBuilder();
 
-            for (TableSeat winner : winners) {
-                winMsg.append(winner.getUsername()).append(" ");
-
-                // 1. Grab the specific UI controller for this winning player
-                PlayerSeatController controller = seatControllerMap.get(winner.getUsername());
-
-                // 2. Fetch their cards and reveal them!
-                // (Assuming your TableSeat method is called getHoleCards or getCards)
-                List<Card> cards = winner.getHoleCards();
-                if (controller != null && cards != null && cards.size() == 2) {
-                    controller.revealCards(cards.get(0), cards.get(1));
-                }
+            for (String username : winnerUsernames) {
+                winMsg.append(username).append(" ");
             }
 
-            // Bonus: Added the winning hand type (e.g., "won $500 with FLUSH")
             winMsg.append("won $").append(potSize)
-                    .append(" with a ").append(winningHand.getType().toString().replace("_", " "));
+                    .append(" with a ").append(winnerHand.getType().toString().replace("_", " "));
 
             chipsInfoLabel.setText(winMsg.toString());
+            this.localPotSize = 0; // Reset local pot tracking for the next hand
         });
     }
 
     @Override
-    public void onNewSeatOccupied(TableSeat tableSeat) {
+    public void onNewSeatOccupied(HandParticipantDTO participant) {
         Platform.runLater(() -> {
             try {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PlayerSeat.fxml"));
                 VBox seatUI = loader.load();
 
-                // Get the specific controller for this seat
                 PlayerSeatController controller = loader.getController();
-                controller.setup(tableSeat);
 
-                // If this is the local player, show their cards immediately
-                if (tableSeat.getUsername().equals(getLocalUsername())) {
-                    // Assuming TableSeat has a getCards() method
-                    List<Card> cards = tableSeat.getHoleCards();
+                // CRITICAL: Update PlayerSeatController.setup() to take HandParticipantDTO instead of TableSeat
+                controller.setup(participant);
+
+                // Reveal cards ONLY if they belong to the local player and are not masked as "HIDDEN"
+                if (participant.playerUsername().equals(getLocalUsername()) && !"HIDDEN".equals(participant.holeCards())) {
+                    List<Card> cards = parseCardsString(participant.holeCards());
                     if (cards.size() == 2) {
                         controller.revealCards(cards.get(0), cards.get(1));
                     }
                 }
 
                 playersContainer.getChildren().add(seatUI);
-                seatControllerMap.put(tableSeat.getUsername(), controller);
+                seatControllerMap.put(participant.playerUsername(), controller);
 
             } catch (IOException e) {
                 e.printStackTrace();
             }
         });
     }
+
     // --- HELPER METHODS ---
 
     private void updateChipsDisplay(int playerChips, int potSize) {
@@ -342,5 +323,61 @@ public class GameController implements IGameEventListener {
         else valStr = String.valueOf(val);
 
         return "/images/" + valStr + "-" + suitStr + ".png";
+    }
+
+    // TODO move to dedicated utility class
+    private List<Card> parseCardsString(String holeCardsStr) {
+        List<Card> cards = new ArrayList<>();
+
+        // 1. Guard clause: Handle hidden cards or empty data safely
+        if (holeCardsStr == null || holeCardsStr.isEmpty() || "HIDDEN".equalsIgnoreCase(holeCardsStr)) {
+            return cards;
+        }
+
+        // 2. Split the tokenized string by the comma
+        String[] cardTokens = holeCardsStr.split(",");
+        for (String token : cardTokens) {
+            token = token.trim();
+            if (token.length() == 2) {
+                Card card = createCardFromChars(token.charAt(0), token.charAt(1));
+                if (card != null) {
+                    cards.add(card);
+                }
+            }
+        }
+        return cards;
+    }
+
+    private Card createCardFromChars(char rankChar, char suitChar) {
+        // 1. Map the single rank character to your model's integer value
+        int value = switch (rankChar) {
+            case '2' -> 2;   case '3' -> 3;   case '4' -> 4;
+            case '5' -> 5;   case '6' -> 6;   case '7' -> 7;
+            case '8' -> 8;   case '9' -> 9;
+            case 'T' -> 10;  // Ten
+            case 'J' -> 11;  // Jack
+            case 'Q' -> 12;  // Queen
+            case 'K' -> 13;  // King
+            case 'A' -> 14;  // Ace
+            default -> -1;
+        };
+
+        // 2. Map the single suit character to your model's exact String naming
+        String suit = switch (suitChar) {
+            case 'h' -> "Hearts";
+            case 'd' -> "Diamonds";
+            case 'c' -> "Clubs";
+            case 's' -> "Spades";
+            default -> null;
+        };
+
+        // 3. If either check fails, reject the token safely
+        if (value == -1 || suit == null) {
+            System.err.println("Invalid card characters received: " + rankChar + suitChar);
+            return null;
+        }
+
+        // 4. Instantiate utilizing your exact constructor logic (which auto-assigns color)
+        return new Card(value, suit);
     }
 }
