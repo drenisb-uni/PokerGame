@@ -1,383 +1,176 @@
 package pokergame.engine;
 
-import pokergame.GameContext;
-import pokergame.domain.dto.HandActionDTO;
-import pokergame.domain.dto.HandParticipantDTO;
-import pokergame.domain.dto.PlayerProfileDTO;
-import pokergame.domain.model.Card;
-import pokergame.domain.model.Deck;
-import pokergame.domain.model.TableSeat;
+import pokergame.domain.model.*;
 import pokergame.domain.repository.IPlayerRepository;
-import pokergame.domain.rules.HandRanker;
-import pokergame.domain.rules.HandResult;
+import pokergame.domain.rules.*;
+import java.util.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+public class PokerGameEngine implements IPublicActionAPI {
+    private final IPlayerRepository playerRepository;
+    private final TableManager tableManager = new TableManager();
+    private final BettingPot bettingPot = new BettingPot();
+    private final GameEventBroadcaster broadcaster = new GameEventBroadcaster();
 
-public class PokerGameEngine {
-    private IPlayerRepository playerRepository;
-    private ArrayList<IGameEventListener> observers = new ArrayList<>();
-
-    private GameState currentState;
-    private final List<TableSeat> tableSeats = new ArrayList<>();
-    private final Deck deck;
+    private final Deck deck = new Deck();
     private final List<Card> communityCards = new ArrayList<>();
-
-    // Betting & Game Tracking
-    private int dealerIndex = 0;
-    private int currentPlayerIndex = 0;
-    private int highestBetThisRound = 0;
-    private int potSize = 0;
-    private int smallBlindAmount = 10; // Default small blind
-    private int playersToAct = 0;
-    private int actionSequenceCounter;
+    private GameState currentState = GameState.WAITING_FOR_PLAYERS;
     private String currentHandId;
 
     public PokerGameEngine(IPlayerRepository playerRepository) {
         this.playerRepository = playerRepository;
-        this.deck = new Deck();
-        this.currentState = GameState.WAITING_FOR_PLAYERS;
     }
-
-    // --- LOBBY & SEATING ---
-
-    public boolean joinTable(String username, int buyAmount) {
-        PlayerProfileDTO user = playerRepository.findProfileByUsername(username);
-        if (user == null) throw new IllegalArgumentException("User not found!");
-        if (user.totalBankroll() < buyAmount) return false;
-
-        TableSeat newSeat = new TableSeat(user, buyAmount);
-        tableSeats.add(newSeat);
-        notifySeatOccupied(newSeat);
-        return true;
-    }
-
-    public void fillTableSeats(int buyAmount) {
-        tableSeats.clear();
-        TableSeat playerSeat = new TableSeat(GameContext.getPlayerProfile(), buyAmount);
-        tableSeats.add(playerSeat);
-        for (int i = 1; i < 6; i++) {
-            PlayerProfileDTO user = new PlayerProfileDTO("u" + i, i + " guy", null, null, 1000, null);
-            TableSeat mockSeat = new TableSeat(user, buyAmount);
-            tableSeats.add(mockSeat);
-            notifySeatOccupied(mockSeat);
-        }
-        notifySeatOccupied(playerSeat);
-    }
-
-    // --- STATE MACHINE & GAME LOOP ---
 
     public void startNewHand() {
-        System.out.println("Starting New Hand...");
-        if (tableSeats.size() < 2) return;
+        if (tableManager.size() < 2) return;
 
-        resetForNewHand();
-        deck.shuffleDeck();
-        dealHoleCards();
-        handleBlinds();
-
-        currentState = GameState.PRE_FLOP_BETTING;
-        notifyGameStateChanged(currentState);
-        promptNextPlayer();
-    }
-
-    private void resetForNewHand() {
+        currentHandId = UUID.randomUUID().toString();
         communityCards.clear();
-        potSize = 0;
-        for (TableSeat seat : tableSeats) {
+        bettingPot.clearPot();
+
+        tableManager.getSeats().forEach(seat -> {
             seat.setFolded(false);
             seat.setRoundBet(0);
             seat.clearCards();
-        }
-    }
+        });
 
-    private void dealHoleCards() {
-        // Deal 2 cards to each active player
+        deck.shuffleDeck();
+        // Deal cards
         for (int i = 0; i < 2; i++) {
-            for (TableSeat seat : tableSeats) {
+            for (TableSeat seat : tableManager.getSeats()) {
                 seat.setHoleCards(deck.getNextCard());
             }
         }
-    }
 
-    private void handleBlinds() {
-        int sbIndex = (dealerIndex + 1) % tableSeats.size();
-        int bbIndex = (dealerIndex + 2) % tableSeats.size();
-
-        // Small Blind
-        TableSeat sbSeat = tableSeats.get(sbIndex);
-        sbSeat.bet(smallBlindAmount);
-        sbSeat.setRoundBet(smallBlindAmount);
-
-        // Big Blind
-        TableSeat bbSeat = tableSeats.get(bbIndex);
-        int bigBlindAmount = smallBlindAmount * 2;
-        bbSeat.bet(bigBlindAmount);
-        bbSeat.setRoundBet(bigBlindAmount);
-
-        potSize += (smallBlindAmount + bigBlindAmount);
-        highestBetThisRound = bigBlindAmount;
-
-        // Pre-flop starts with the player after the Big Blind (Under the Gun)
-        currentPlayerIndex = (bbIndex + 1) % tableSeats.size();
-        playersToAct = getActivePlayerCount();
+        bettingPot.collectBlinds(tableManager);
+        currentState = GameState.PRE_FLOP_BETTING;
+        broadcaster.broadcastGameState(currentState);
+        promptNextPlayer();
     }
 
     public void executePlayerAction(String username, String actionType, int amount) {
-        TableSeat actor = tableSeats.get(currentPlayerIndex);
+        TableSeat actor = tableManager.getCurrentPlayer();
         if (!actor.getUsername().equals(username)) return;
 
         switch (actionType.toUpperCase()) {
-            case "FOLD" -> handleFold(actor);
-            case "CALL" -> handleCall(actor); // Check is treated as a Call of 0
-            case "RAISE" -> handleRaise(actor, amount);
+            case "FOLD" -> Fold(username);
+            case "CALL" -> Call(username);
+            case "RAISE" -> Raise(username, amount);
         }
 
-        notifyPlayerAction(actor, actionType, amount);
-        playersToAct--;
+        broadcaster.broadcastAction(actor, actionType, amount, currentState, currentHandId);
+        advanceTurn();
+    }
+
+    @Override
+    public void Fold(String actorUsername) {
+        tableManager.findByUsername(actorUsername).ifPresent(bettingPot::handleFold);
+        bettingPot.decrementPlayersToAct();
+        advanceTurn();
+    }
+
+    @Override
+    public void Call(String actorUsername) {
+        tableManager.findByUsername(actorUsername).ifPresent(bettingPot::handleCall);
+        advanceTurn();
+    }
+
+    @Override
+    public void Raise(String actorUsername, int amount) {
+        tableManager.findByUsername(actorUsername).ifPresent(seat ->
+                bettingPot.handleRaise(seat, amount, tableManager.getActivePlayerCount())
+        );
         advanceTurn();
     }
 
     private void advanceTurn() {
-        if (getActivePlayerCount() <= 1) {
-            handleEarlyWin(); // Everyone else folded
+        if (tableManager.getActivePlayerCount() <= 1) {
+            handleEarlyWin();
             return;
         }
 
-        if (isBettingRoundComplete()) {
+        if (bettingPot.isRoundComplete(tableManager)) {
             advanceGameStage();
         } else {
-            moveToNextActivePlayer();
+            tableManager.moveToNextActivePlayer();
             promptNextPlayer();
         }
     }
 
     private void advanceGameStage() {
-        resetBettingForNextRound();
+        bettingPot.resetRound();
 
         switch (currentState) {
-            case PRE_FLOP_BETTING -> {
-                currentState = GameState.FLOP_DEALING;
-                dealCommunityCards(3);
-                currentState = GameState.FLOP_BETTING;
-            }
-            case FLOP_BETTING -> {
-                currentState = GameState.TURN_DEALING;
-                dealCommunityCards(1);
-                currentState = GameState.TURN_BETTING;
-            }
-            case TURN_BETTING -> {
-                currentState = GameState.RIVER_DEALING;
-                dealCommunityCards(1);
-                currentState = GameState.RIVER_BETTING;
-            }
-            case RIVER_BETTING -> {
-                currentState = GameState.SHOWDOWN;
-                evaluateShowdown();
-                return;
-            }
+            case PRE_FLOP_BETTING -> dealCommunityStage(GameState.FLOP_BETTING, 3);
+            case FLOP_BETTING -> dealCommunityStage(GameState.TURN_BETTING, 1);
+            case TURN_BETTING -> dealCommunityStage(GameState.RIVER_BETTING, 1);
+            case RIVER_BETTING -> evaluateShowdown();
         }
-
-        notifyGameStateChanged(currentState);
-
-        // Post-flop betting starts with the first active player after the dealer
-        currentPlayerIndex = dealerIndex;
-        moveToNextActivePlayer();
-        playersToAct = getActivePlayerCount();
-        promptNextPlayer();
+        System.out.print(currentState+"\n");
     }
 
-    // --- BETTING LOGIC ---
-
-    private void handleFold(TableSeat actor) {
-        actor.setFolded(true);
-    }
-
-    private void handleCall(TableSeat actor) {
-        int amountToCall = highestBetThisRound - actor.getCurrentRoundBet();
-        // Handle all-in logic here if amountToCall > actor.getChips()
-        actor.bet(amountToCall);
-        actor.setRoundBet(highestBetThisRound);
-        potSize += amountToCall;
-    }
-
-    private void handleRaise(TableSeat actor, int raiseTotalAmount) {
-        int additionalAmount = raiseTotalAmount - actor.getCurrentRoundBet();
-        actor.bet(additionalAmount);
-        actor.setRoundBet(raiseTotalAmount);
-        potSize += additionalAmount;
-        highestBetThisRound = raiseTotalAmount;
-
-        // Reset players to act because everyone else now has to respond to the new raise
-        playersToAct = getActivePlayerCount();
-    }
-
-    private void resetBettingForNextRound() {
-        highestBetThisRound = 0;
-        for (TableSeat seat : tableSeats) {
-            seat.setRoundBet(0);
-        }
-    }
-
-    private boolean isBettingRoundComplete() {
-        if (playersToAct > 0) return false;
-
-        // Verify all active players have matched the highest bet
-        for (TableSeat seat : tableSeats) {
-            if (!seat.isFolded() && seat.getCurrentRoundBet() != highestBetThisRound) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void moveToNextActivePlayer() {
-        do {
-            currentPlayerIndex = (currentPlayerIndex + 1) % tableSeats.size();
-        } while (tableSeats.get(currentPlayerIndex).isFolded());
-    }
-
-    private int getActivePlayerCount() {
-        int count = 0;
-        for (TableSeat seat : tableSeats) {
-            if (!seat.isFolded()) count++;
-        }
-        return count;
-    }
-
-    private void promptNextPlayer() {
-        TableSeat actor = tableSeats.get(currentPlayerIndex);
-        int amountToCall = highestBetThisRound - actor.getCurrentRoundBet();
-        notifyPlayerTurn(actor, amountToCall);
-    }
-
-    // --- DEALING & WINNING ---
-
-    private void dealCommunityCards(int count) {
+    private void dealCommunityStage(GameState nextStage, int count) {
         List<Card> newCards = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             Card c = deck.getNextCard();
             communityCards.add(c);
             newCards.add(c);
         }
-        notifyCardsDealt(newCards);
+        currentState = nextStage;
+        broadcaster.broadcastGameState(currentState);
+        broadcaster.broadcastCards(newCards);
+
+        tableManager.setCurrentPlayerIndex(tableManager.getDealerIndex());
+        tableManager.moveToNextActivePlayer();
+        bettingPot.setPlayersToAct(tableManager.getActivePlayerCount());
+        promptNextPlayer();
+    }
+
+    private void promptNextPlayer() {
+        TableSeat actor = tableManager.getCurrentPlayer();
+        int amountToCall = bettingPot.getHighestBet() - actor.getCurrentRoundBet();
+        broadcaster.broadcastTurnPrompt(actor, amountToCall);
     }
 
     private void handleEarlyWin() {
-        TableSeat winner = null;
-        for (TableSeat seat : tableSeats) {
-            if (!seat.isFolded()) winner = seat;
-        }
-        if (winner != null) {
-            winner.addChipsOnTable(potSize);
-            notifyHandResult(List.of(winner), null, potSize);
-        }
+        tableManager.getActivePlayers().stream().findFirst().ifPresent(winner -> {
+            winner.addChipsOnTable(bettingPot.getPotSize());
+            broadcaster.broadcastResult(List.of(winner), null, bettingPot.getPotSize());
+        });
         endHand();
     }
 
     private void evaluateShowdown() {
         HandRanker ranker = new HandRanker();
-
-        // HandRanker expects an array for community cards, so we convert the list
         Card[] commCardsArray = communityCards.toArray(new Card[0]);
+        List<TableSeat> activePlayers = tableManager.getActivePlayers();
 
-        // 1. Get all players who haven't folded
-        List<TableSeat> activePlayers = tableSeats.stream()
-                .filter(seat -> !seat.isFolded())
-                .toList();
-
-        if (activePlayers.isEmpty()) {
-            endHand();
-            return;
-        }
-
-        // 2. Evaluate each active player's hand and store the results
         Map<TableSeat, HandResult> playerResults = new HashMap<>();
         for (TableSeat seat : activePlayers) {
-            HandResult result = ranker.evaluate(seat.getHoleCards(), commCardsArray);
-            playerResults.put(seat, result);
+            playerResults.put(seat, ranker.evaluate(seat.getHoleCards(), commCardsArray));
         }
 
-        // 3. Find the best possible hand at the table using your Comparable implementation
-        HandResult bestResult = playerResults.values().stream()
-                .max(HandResult::compareTo)
-                .orElseThrow(); // Should never throw since activePlayers isn't empty
-
-        // 4. Find all players who hold that best hand (this handles Split Pots naturally!)
+        HandResult bestResult = playerResults.values().stream().max(HandResult::compareTo).orElseThrow();
         List<TableSeat> winners = activePlayers.stream()
-                .filter(seat -> playerResults.get(seat).compareTo(bestResult) == 0)
-                .toList();
+                .filter(seat -> playerResults.get(seat).compareTo(bestResult) == 0).toList();
 
-        // 5. Divide the pot and award chips
-        int splitPot = potSize / winners.size();
-        for (TableSeat winner : winners) {
-            winner.addChipsOnTable(splitPot);
-        }
-
-        // 6. Notify the UI
-        notifyHandResult(winners, bestResult, potSize);
-
+        bettingPot.awardPotToWinners(winners);
+        broadcaster.broadcastResult(winners, bestResult, bettingPot.getPotSize());
         endHand();
     }
 
     private void endHand() {
         currentState = GameState.HAND_OVER;
-        notifyGameStateChanged(currentState);
-
-        // Rotate dealer
-        dealerIndex = (dealerIndex + 1) % tableSeats.size();
+        broadcaster.broadcastGameState(currentState);
+        tableManager.rotateDealer();
     }
 
-    public int getPotSize(){
-        return this.potSize;
-    }
-
-    // --- OBSERVER NOTIFICATIONS ---
-
-    public void addObserver(IGameEventListener observer) { this.observers.add(observer); }// Inside poker-server module
-
-    private void notifySeatOccupied(TableSeat newSeat) {
-        HandParticipantDTO participantDto = new HandParticipantDTO(
-                this.currentHandId == null ? "WAITING_FOR_HAND" : this.currentHandId,
-                newSeat.getUsername(),
-                newSeat.getSeatIndex(),
-                "HIDDEN",
-                newSeat.getChipsOnTable(),
-                newSeat.getChipsOnTable(),
-                0,
-                false
-        );
-
-        observers.forEach(o -> o.onNewSeatOccupied(participantDto));
-    }
-
-    private void notifyPlayerAction(TableSeat actor, String actionType, int amount) {
-        HandActionDTO actionDto = new HandActionDTO(
-                0,
-                this.currentHandId,
-                actor.getUsername(),
-                this.currentState.name(),
-                this.actionSequenceCounter++,
-                actionType,
-                amount
-        );
-        observers.forEach(o -> o.onPlayerAction(actionDto));
-    }
-
-    private void notifyPlayerTurn(TableSeat actor, int amount) {
-        observers.forEach(o -> o.onPlayerTurn(actor.getUsername(), amount));
-    }
-    private void notifyGameStateChanged(GameState state) { observers.forEach(o -> o.onGameStateChanged(state)); }
-    private void notifyCardsDealt(List<Card> cards) { observers.forEach(o -> o.onCommunityCardsDealt(cards)); }
-    private void notifyHandResult(List<TableSeat> winners, HandResult winnerHand, int potSize) {
-        // 1. Convert the List<TableSeat> into a List<String> of usernames
-        List<String> winnerUsernames = winners.stream()
-                .map(TableSeat::getUsername)
-                .toList();
-
-        // 2. Broadcast the Strings, keeping the TableSeat objects safely on the server
-        observers.forEach(o -> o.onHandResult(winnerUsernames, winnerHand, potSize));
+    // Pass-through getters for tests
+    public int getPotSize() { return bettingPot.getPotSize(); }
+    public int getHighestCurrentBet() { return bettingPot.getHighestBet(); }
+    public TableSeat getPlayerByUsername(String name) { return tableManager.findByUsername(name).orElse(null); }
+    public GameState getCurrentState() { return currentState; }
+    public void addObserver(IGameEventListener obs) { broadcaster.addObserver(obs); }
+    public void sitPlayerDown(String id, int chips, int idx) {
+        tableManager.addSeat(new TableSeat(new pokergame.domain.dto.PlayerProfileDTO(id, id, null, null, chips, null), chips));
     }
 }
