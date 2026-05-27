@@ -2,14 +2,21 @@ package pokergame.engine;
 
 import pokergame.domain.model.TableSeat;
 
+import java.util.ArrayList;
+
 public class BettingPot {
     private int potSize = 0;
+    private int foldedPot = 0;
     private int highestBetThisRound = 0;
     private int smallBlindAmount = 10;
     private int playersToAct = 0;
 
-    public void resetRound() {
+    public void resetRound(TableManager tableManager) {
         this.highestBetThisRound = 0;
+
+        for (TableSeat seat : tableManager.getSeats()) {
+            seat.setRoundBet(0);
+        }
     }
 
     public void collectBlinds(TableManager tableManager) {
@@ -34,7 +41,7 @@ public class BettingPot {
 
     public void handleFold(TableSeat actor){
         actor.setFolded(true);
-        actor.addChipsOnTable(-actor.getCurrentRoundBet());
+        decrementPlayersToAct();
     }
 
     public void handleCall(TableSeat actor) {
@@ -75,6 +82,7 @@ public class BettingPot {
     }
 
     public int getPotSize() { return potSize; }
+    public int getFoldedPot() { return foldedPot; }
     public int getHighestBet() { return highestBetThisRound; }
     public void setPlayersToAct(int count) { this.playersToAct = count; }
     public void decrementPlayersToAct() { this.playersToAct--; }

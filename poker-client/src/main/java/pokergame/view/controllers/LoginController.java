@@ -9,7 +9,6 @@ import javafx.scene.control.TextField;
 import javafx.scene.input.MouseEvent;
 import pokergame.GameContext;
 import pokergame.domain.dto.PlayerProfileDTO;
-import pokergame.domain.repository.IPlayerRepository;
 import pokergame.view.SceneManager;
 
 import java.time.LocalDateTime;
@@ -40,26 +39,26 @@ public class LoginController {
         System.out.println("Attempting to log in user: " + username);
 
         try {
-            IPlayerRepository repo = GameContext.getPlayerRepository();
-            PlayerProfileDTO userProfile = repo.findProfileByUsername(username);
-
-            if (userProfile == null) {
-                showError(loginErrorLabel, "Invalid username or password.");
-                return;
-            }
-
-            BCrypt.Result result = BCrypt.verifyer().verify(password.toCharArray(), userProfile.passwordHash());
-
-            if (result.verified) {
-                System.out.println("Login successful for: " + username);
-
-                GameContext.setPlayerProfile(userProfile);
-
-                SceneManager.switchScene("Lobby.fxml");
-
-            } else {
-                showError(loginErrorLabel, "Invalid username or password.");
-            }
+//            IPlayerRepository repo = GameContext.getPlayerRepository();
+//            PlayerProfileDTO userProfile = repo.findProfileByUsername(username);
+//
+//            if (userProfile == null) {
+//                showError(loginErrorLabel, "Invalid username or password.");
+//                return;
+//            }
+//
+//            BCrypt.Result result = BCrypt.verifyer().verify(password.toCharArray(), userProfile.passwordHash());
+//
+//            if (result.verified) {
+//                System.out.println("Login successful for: " + username);
+//
+//                GameContext.setPlayerProfile(userProfile);
+//
+//                SceneManager.switchScene("Lobby.fxml");
+//
+//            } else {
+//                showError(loginErrorLabel, "Invalid username or password.");
+//            }
 
         } catch (Exception e) {
             showError(loginErrorLabel, "A database error occurred. Please try again.");
@@ -102,17 +101,17 @@ public class LoginController {
         PlayerProfileDTO newUser = new PlayerProfileDTO(
                 newId, username, email, hashedPassword, 1000, LocalDateTime.now()
         );
-
-        try {
-            IPlayerRepository repo = GameContext.getPlayerRepository();
-            repo.saveProfile(newUser);
-            System.out.println("User registered successfully!");
-            SceneManager.switchScene("Lobby.fxml");
-        }
-        catch (Exception e) {
-            showError(regErrorLabel, "Error saving user. Username or Email might already exist.");
-            e.printStackTrace();
-        }
+//
+//        try {
+//            IPlayerRepository repo = GameContext.getPlayerRepository();
+//            repo.saveProfile(newUser);
+//            System.out.println("User registered successfully!");
+//            SceneManager.switchScene("Lobby.fxml");
+//        }
+//        catch (Exception e) {
+//            showError(regErrorLabel, "Error saving user. Username or Email might already exist.");
+//            e.printStackTrace();
+//        }
     }
     @FXML
     public void switchToSignup(MouseEvent event) {

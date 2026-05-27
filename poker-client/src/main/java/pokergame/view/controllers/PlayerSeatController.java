@@ -6,7 +6,6 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import pokergame.domain.dto.HandParticipantDTO;
 import pokergame.domain.model.Card;
-import pokergame.domain.model.TableSeat;
 
 public class PlayerSeatController {
 

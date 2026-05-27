@@ -64,7 +64,6 @@ public class PokerGameEngine implements IPublicActionAPI {
     @Override
     public void Fold(String actorUsername) {
         tableManager.findByUsername(actorUsername).ifPresent(bettingPot::handleFold);
-        bettingPot.decrementPlayersToAct();
         advanceTurn();
     }
 
@@ -97,7 +96,7 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     private void advanceGameStage() {
-        bettingPot.resetRound();
+        bettingPot.resetRound(tableManager);
 
         switch (currentState) {
             case PRE_FLOP_BETTING -> dealCommunityStage(GameState.FLOP_BETTING, 3);
