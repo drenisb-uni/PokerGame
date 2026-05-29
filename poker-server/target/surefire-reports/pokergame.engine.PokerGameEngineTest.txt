@@ -1,0 +1,12 @@
+-------------------------------------------------------------------------------
+Test set: pokergame.engine.PokerGameEngineTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.057 s <<< FAILURE! -- in pokergame.engine.PokerGameEngineTest
+pokergame.engine.PokerGameEngineTest.testThreePlayerBettingRound -- Time elapsed: 0.027 s <<< ERROR!
+java.lang.IllegalStateException: Repository not initialized!
+	at pokergame.GameContext.getPlayerRepository(GameContext.java:18)
+	at pokergame.engine.PokerGameEngineTest.testThreePlayerBettingRound(PokerGameEngineTest.java:17)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
