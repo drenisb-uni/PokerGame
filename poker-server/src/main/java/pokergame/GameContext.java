@@ -1,8 +1,8 @@
 package pokergame;
 
 import pokergame.domain.dto.PlayerProfileDTO;
-import pokergame.domain.repository.IPlayerRepository;
-import pokergame.engine.PokerGameEngine;
+import pokergame.server.domain.repository.IPlayerRepository;
+import pokergame.server.engine.PokerGameEngine;
 
 public class GameContext {
     private static IPlayerRepository playerRepository;

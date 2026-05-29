@@ -10,7 +10,7 @@
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
-<StackPane fx:controller="pokergame.view.controllers.GameController"
+<StackPane fx:controller="pokergame.client.view.controllers.GameController"
            prefHeight="639.0" prefWidth="1366.0"
            stylesheets="@css/style.css" styleClass="root-pane"
            xmlns="http://javafx.com/javafx/21"

@@ -4,7 +4,7 @@
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.text.Font?>
 
-<StackPane fx:controller="pokergame.view.controllers.WelcomeController"
+<StackPane fx:controller="pokergame.client.view.controllers.WelcomeController"
            prefHeight="639.0" prefWidth="1366.0"
            stylesheets="@css/style.css" styleClass="root-pane"
            xmlns="http://javafx.com/javafx/21"

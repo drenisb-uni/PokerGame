@@ -5,8 +5,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import pokergame.GameContext;
-import pokergame.engine.GameCommandProcessor;
-import pokergame.engine.PokerGameEngine;
+import pokergame.server.engine.GameCommandProcessor;
+import pokergame.server.engine.PokerGameEngine;
+import pokergame.server.network.PokerWebSocketServer;
 
 import java.net.URI;
 import java.net.http.HttpClient;

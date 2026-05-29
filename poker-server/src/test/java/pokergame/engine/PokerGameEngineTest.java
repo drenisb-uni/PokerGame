@@ -1,10 +1,10 @@
 package pokergame.engine;
 
 import pokergame.GameContext;
-import pokergame.dbinfrastructure.SqlPlayerRepository;
-import pokergame.domain.repository.IPlayerRepository;
 import pokergame.engine.commands.*;
 import org.junit.jupiter.api.Test;
+import pokergame.server.engine.GameCommandProcessor;
+import pokergame.server.engine.PokerGameEngine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
