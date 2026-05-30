@@ -196,6 +196,7 @@ public class PokerWebSocketServer extends WebSocketServer implements IGameEventL
         syncWaitingBot();
         broadcastTableSnapshot();
         gameEngine.startHandIfReady();
+        broadcastTableSnapshot();
     }
 
     private void handleAddBotRequest() {
@@ -209,6 +210,7 @@ public class PokerWebSocketServer extends WebSocketServer implements IGameEventL
         gameEngine.sitPlayerDown(botUsername);
         broadcastTableSnapshot();
         gameEngine.startHandIfReady();
+        broadcastTableSnapshot();
     }
 
     private void handleLeaveTable(WebSocket conn, String playerId) {

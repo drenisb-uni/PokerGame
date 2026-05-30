@@ -1,5 +1,11 @@
 package pokergame.client.view.controllers;
 
+import javafx.animation.FadeTransition;
+import javafx.animation.ParallelTransition;
+import javafx.animation.PauseTransition;
+import javafx.animation.ScaleTransition;
+import javafx.animation.SequentialTransition;
+import javafx.animation.TranslateTransition;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -13,6 +19,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 import pokergame.GameContext;
 import pokergame.client.network.OutboundActionPayload;
 import pokergame.client.network.PokerWebSocketClient;
@@ -28,10 +35,12 @@ import pokergame.engine.IGameEventListener;
 import pokergame.engine.IPublicActionAPI; // Decoupled interface contract
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 
 public class GameController implements IGameEventListener {
 
@@ -59,9 +68,30 @@ public class GameController implements IGameEventListener {
     // --- GAME STATE VARIABLES ---
     private final Map<String, PlayerSeatController> seatControllerMap = new HashMap<>();
     private final Map<String, String> latestPlayerActions = new HashMap<>();
+    private final Queue<HandActionDTO> pendingActionAnimations = new ArrayDeque<>();
+    private static final int WINNER_SCREEN_HOLD_MS = 8000;
+    private boolean actionAnimationRunning = false;
+    private boolean winnerAnimationRunning = false;
+    private boolean applyingDeferredTableSetup = false;
+    private PauseTransition winnerDisplayHold;
+    private String lastAnimatedActionPlayer = null;
+    private GameMessageDTO deferredTableSnapshot;
+    private GameMessageDTO deferredHandResultMessage;
+    private List<String> activeWinnerUsernames = List.of();
+    private List<String> deferredWinnerUsernames;
+    private HandResult deferredWinnerHand;
+    private int deferredWinnerPotSize;
+    private boolean hasDeferredHandResult = false;
+    private GameState deferredGameState;
+    private boolean hasDeferredGameState = false;
+    private String deferredTurnUsername;
+    private int deferredTurnAmountToCall;
+    private boolean hasDeferredTurnPrompt = false;
     private int currentCommunityCardIndex = 0;
     private int currentAmountToCall = 0;
     private int localPotSize = 0;
+    private int activeWinnerPotSize = 0;
+    private int maxSeatsAtTable = 6;
 
     @FXML
     public void initialize() {
@@ -101,18 +131,21 @@ public class GameController implements IGameEventListener {
 
     @FXML
     public void handleFold(ActionEvent event) {
+        playButtonPress(foldButton);
         disableBettingControls();
         sendAction("FOLD", 0);
     }
 
     @FXML
     public void handleCall(ActionEvent event) {
+        playButtonPress(callButton);
         disableBettingControls();
         sendAction("CALL", 0);
     }
 
     @FXML
     public void handleConfirmRaise(ActionEvent event) {
+        playButtonPress((Button) event.getSource());
         try {
             int amount = Integer.parseInt(raiseAmountInput.getText().trim());
 
@@ -122,7 +155,7 @@ public class GameController implements IGameEventListener {
             }
 
             disableBettingControls();
-            raisePopupOverlay.setVisible(false);
+            hideRaisePopupAnimated();
 
             sendAction("RAISE", amount);
 
@@ -133,8 +166,9 @@ public class GameController implements IGameEventListener {
 
     @FXML
     public void handleAllIn(ActionEvent event) {
+        playButtonPress((Button) event.getSource());
         disableBettingControls();
-        raisePopupOverlay.setVisible(false);
+        hideRaisePopupAnimated();
 
         // Fetch current active chip reserves straight from the UI tracker
         PlayerSeatController localSeat = seatControllerMap.get(localUsername);
@@ -145,11 +179,13 @@ public class GameController implements IGameEventListener {
 
     @FXML
     public void handleAddBot(ActionEvent event) {
+        playButtonPress(addBotButton);
         sendAction("ADD_BOT", 0);
     }
 
     @FXML
     public void handleLeaveTable(ActionEvent event) {
+        playButtonPress(leaveTableButton);
         sendAction("LEAVE_TABLE", 0);
         PokerWebSocketClient client = PokerWebSocketClient.getInstance();
         if (client != null && client.isOpen()) {
@@ -160,13 +196,15 @@ public class GameController implements IGameEventListener {
 
     @FXML
     public void showRaisePopup(ActionEvent event) {
+        playButtonPress(raiseButton);
         raiseAmountInput.clear();
-        raisePopupOverlay.setVisible(true);
+        showRaisePopupAnimated();
     }
 
     @FXML
     public void hideRaisePopup(ActionEvent event) {
-        raisePopupOverlay.setVisible(false);
+        playButtonPress((Button) event.getSource());
+        hideRaisePopupAnimated();
     }
 
     // --- ENGINE EVENT LISTENERS (Inbound Server Events) ---
@@ -174,11 +212,22 @@ public class GameController implements IGameEventListener {
     @Override
     public void onGameStateChanged(GameState newState) {
         Platform.runLater(() -> {
+            if (!applyingDeferredTableSetup && isVisualSequenceActive()) {
+                deferredGameState = newState;
+                hasDeferredGameState = true;
+                disableBettingControls();
+                return;
+            }
+
             switch (newState) {
                 case WAITING_FOR_PLAYERS:
                     if (gameStatusLabel != null) gameStatusLabel.setText("Waiting for players...");
                     break;
                 case PRE_FLOP_BETTING:
+                    latestPlayerActions.clear();
+                    if (actionFeedList != null) {
+                        actionFeedList.getItems().clear();
+                    }
                     if (gameStatusLabel != null) gameStatusLabel.setText("Pre-flop");
                     currentCommunityCardIndex = 0;
                     for (ImageView iv : communityCards) {
@@ -195,8 +244,9 @@ public class GameController implements IGameEventListener {
                     if (gameStatusLabel != null) gameStatusLabel.setText("River");
                     break;
                 case HAND_OVER:
-                    if (gameStatusLabel != null) gameStatusLabel.setText("Showing cards...");
+                    if (gameStatusLabel != null) gameStatusLabel.setText("Round over - add bots now");
                     disableBettingControls();
+                    if (addBotButton != null) addBotButton.setDisable(false);
                     break;
                 default:
                     break;
@@ -213,6 +263,7 @@ public class GameController implements IGameEventListener {
                     try {
                         Image cardImg = new Image(getClass().getResource(imagePath).toExternalForm());
                         communityCards[currentCommunityCardIndex].setImage(cardImg);
+                        playCommunityCardAnimation(communityCards[currentCommunityCardIndex], currentCommunityCardIndex);
                     } catch (Exception e) {
                         System.err.println("Could not load image: " + imagePath);
                     }
@@ -227,13 +278,33 @@ public class GameController implements IGameEventListener {
         Platform.runLater(() -> {
             // Guard clause if data initializes before injection finishes
             if (localUsername == null) return;
+            if (isVisualSequenceActive()) {
+                deferredTurnUsername = username;
+                deferredTurnAmountToCall = amountToCall;
+                hasDeferredTurnPrompt = true;
+                disableBettingControls();
+                if (chipsInfoLabel != null) {
+                    chipsInfoLabel.setText("Resolving player actions... | Pot: $" + this.localPotSize);
+                }
+                if (!actionAnimationRunning && !pendingActionAnimations.isEmpty()) {
+                    playNextQueuedPlayerAction();
+                }
+                return;
+            }
 
             if (username.equals(localUsername)) {
                 this.currentAmountToCall = amountToCall;
                 enableBettingControls();
                 callButton.setText(amountToCall == 0 ? "Check" : "Call $" + amountToCall);
+                playActionControlsReadyAnimation();
             } else {
                 disableBettingControls();
+            }
+
+            seatControllerMap.values().forEach(controller -> controller.setTurnActive(false));
+            PlayerSeatController activeController = seatControllerMap.get(username);
+            if (activeController != null) {
+                activeController.setTurnActive(true);
             }
 
             PlayerSeatController controller = seatControllerMap.get(localUsername);
@@ -250,25 +321,30 @@ public class GameController implements IGameEventListener {
     @Override
     public void onPlayerAction(HandActionDTO action) {
         Platform.runLater(() -> {
-            PlayerSeatController controller = seatControllerMap.get(action.playerId());
-            if (controller != null) {
-                String actionText = formatActionText(action);
-                controller.setAction(actionText);
-                latestPlayerActions.put(action.playerId(), actionText);
-                appendActionFeed(action.playerId() + " " + actionText.toLowerCase());
-
-                if ("RAISE".equalsIgnoreCase(action.actionType()) || "CALL".equalsIgnoreCase(action.actionType())) {
-                    this.localPotSize += action.amount();
-                }
+            pendingActionAnimations.add(action);
+            if (winnerAnimationRunning || applyingDeferredTableSetup) {
+                disableBettingControls();
+                return;
             }
+            playNextQueuedPlayerAction();
         });
     }
 
     @Override
     public void onHandResult(List<String> winnerUsernames, HandResult winnerHand, int potSize) {
         Platform.runLater(() -> {
+            if (isActionSequenceActive()) {
+                deferredWinnerUsernames = winnerUsernames == null ? List.of() : new ArrayList<>(winnerUsernames);
+                deferredWinnerHand = winnerHand;
+                deferredWinnerPotSize = potSize;
+                hasDeferredHandResult = true;
+                disableBettingControls();
+                return;
+            }
+
+            List<String> safeWinnerUsernames = winnerUsernames == null ? List.of() : winnerUsernames;
             StringBuilder winMsg = new StringBuilder();
-            for (String username : winnerUsernames) {
+            for (String username : safeWinnerUsernames) {
                 winMsg.append(username).append(" ");
             }
 
@@ -278,6 +354,9 @@ public class GameController implements IGameEventListener {
 
             winMsg.append("won $").append(potSize).append(" with ").append(handTypeStr);
             chipsInfoLabel.setText(winMsg.toString());
+            openAddBotWindow();
+            appendActionFeed(winMsg.toString());
+            playHandResultAnimation(safeWinnerUsernames, potSize);
             this.localPotSize = 0;
         });
     }
@@ -289,6 +368,9 @@ public class GameController implements IGameEventListener {
                 // If seat already populated locally, refresh current counts instead of inflating layouts
                 PlayerSeatController existingCtrl = seatControllerMap.get(participant.playerUsername());
                 existingCtrl.setup(participant);
+                if (latestPlayerActions.containsKey(participant.playerUsername())) {
+                    existingCtrl.restoreActionVisual(latestPlayerActions.get(participant.playerUsername()));
+                }
                 return;
             }
 
@@ -298,6 +380,10 @@ public class GameController implements IGameEventListener {
 
                 PlayerSeatController controller = loader.getController();
                 controller.setup(participant);
+                boolean hasLatestAction = latestPlayerActions.containsKey(participant.playerUsername());
+                if (hasLatestAction) {
+                    controller.restoreActionVisual(latestPlayerActions.get(participant.playerUsername()));
+                }
 
                 if (participant.playerUsername().equals(localUsername) && !"HIDDEN".equals(participant.holeCards())) {
                     List<Card> cards = parseCardsString(participant.holeCards());
@@ -308,6 +394,9 @@ public class GameController implements IGameEventListener {
 
                 playersContainer.getChildren().add(seatUI);
                 seatControllerMap.put(participant.playerUsername(), controller);
+                if (!hasLatestAction) {
+                    controller.playSeatEntryAnimation();
+                }
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -335,10 +424,21 @@ public class GameController implements IGameEventListener {
     private void handleTableSnapshot(GameMessageDTO event) {
         Platform.runLater(() -> {
             Map<String, Object> payload = asMap(event.payload());
+            String gameState = asString(payload.get("gameState"));
+
+            if (!applyingDeferredTableSetup && isVisualSequenceActive()
+                    && !(winnerAnimationRunning && "HAND_OVER".equals(gameState))) {
+                deferredTableSnapshot = event;
+                if (!actionAnimationRunning && !pendingActionAnimations.isEmpty()) {
+                    playNextQueuedPlayerAction();
+                }
+                return;
+            }
+
             List<?> seats = asList(payload.get("seats"));
             int maxSeats = asInt(payload.get("maxSeats"), 6);
+            this.maxSeatsAtTable = maxSeats;
             int potSize = asInt(payload.get("potSize"), this.localPotSize);
-            String gameState = asString(payload.get("gameState"));
             int tableBuyIn = asInt(payload.get("tableBuyIn"), 0);
             int smallBlind = asInt(payload.get("smallBlind"), 0);
             int bigBlind = asInt(payload.get("bigBlind"), 0);
@@ -373,7 +473,7 @@ public class GameController implements IGameEventListener {
                 if (seats.size() < 2) {
                     gameStatusLabel.setText(tableLabel(tableBuyIn, smallBlind, bigBlind) + " | Waiting for players...");
                 } else if ("HAND_OVER".equals(gameState)) {
-                    gameStatusLabel.setText("Showing cards...");
+                    gameStatusLabel.setText("Round over - add bots now");
                 } else if (!gameState.isBlank()) {
                     gameStatusLabel.setText(tableLabel(tableBuyIn, smallBlind, bigBlind));
                 }
@@ -381,6 +481,8 @@ public class GameController implements IGameEventListener {
 
             if (!"HAND_OVER".equals(gameState)) {
                 chipsInfoLabel.setText("Your Chips: $" + getLocalChipCount() + "  |  Pot: $" + this.localPotSize);
+            } else if (winnerAnimationRunning) {
+                restoreWinnerDisplayAfterTableRefresh();
             }
         });
     }
@@ -388,7 +490,7 @@ public class GameController implements IGameEventListener {
     private void handleGameStateMessage(GameMessageDTO event) {
         try {
             GameState state = GameState.valueOf(asString(event.payload()));
-            if (state == GameState.PRE_FLOP_BETTING) {
+            if (state == GameState.PRE_FLOP_BETTING && !isVisualSequenceActive()) {
                 latestPlayerActions.clear();
                 if (actionFeedList != null) {
                     actionFeedList.getItems().clear();
@@ -429,12 +531,20 @@ public class GameController implements IGameEventListener {
 
     private void handleHandResultMessage(GameMessageDTO event) {
         Platform.runLater(() -> {
+            if (isActionSequenceActive()) {
+                deferredHandResultMessage = event;
+                disableBettingControls();
+                return;
+            }
+
             Map<String, Object> payload = asMap(event.payload());
             String winners = String.join(" ", asStringList(payload.get("winnerUsernames")));
             String hand = asString(payload.get("winnerHand"));
             int potSize = asInt(payload.get("potSize"), 0);
             chipsInfoLabel.setText(winners + " won $" + potSize + " with " + (hand.isBlank() ? "Muck" : hand.replace("_", " ")));
+            openAddBotWindow();
             appendActionFeed(winners + " won $" + potSize);
+            playHandResultAnimation(asStringList(payload.get("winnerUsernames")), potSize);
             localPotSize = 0;
         });
     }
@@ -446,8 +556,9 @@ public class GameController implements IGameEventListener {
 
             PlayerSeatController controller = loader.getController();
             controller.setup(participant);
-            if (latestPlayerActions.containsKey(participant.playerUsername())) {
-                controller.setAction(latestPlayerActions.get(participant.playerUsername()));
+            boolean hasLatestAction = latestPlayerActions.containsKey(participant.playerUsername());
+            if (hasLatestAction) {
+                controller.restoreActionVisual(latestPlayerActions.get(participant.playerUsername()));
             }
 
             List<Card> visibleCards = parseCardsString(participant.holeCards());
@@ -457,8 +568,344 @@ public class GameController implements IGameEventListener {
 
             playersContainer.getChildren().add(seatUI);
             seatControllerMap.put(participant.playerUsername(), controller);
+            if (!hasLatestAction) {
+                controller.playSeatEntryAnimation();
+            }
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private void playButtonPress(Button button) {
+        if (button == null) {
+            return;
+        }
+
+        ScaleTransition press = new ScaleTransition(Duration.millis(110), button);
+        press.setToX(0.94);
+        press.setToY(0.94);
+
+        ScaleTransition release = new ScaleTransition(Duration.millis(170), button);
+        release.setToX(1);
+        release.setToY(1);
+
+        new SequentialTransition(press, release).play();
+    }
+
+    private void showRaisePopupAnimated() {
+        if (raisePopupOverlay == null) {
+            return;
+        }
+
+        raisePopupOverlay.setOpacity(0);
+        raisePopupOverlay.setVisible(true);
+
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(320), raisePopupOverlay);
+        fadeIn.setToValue(1);
+        fadeIn.play();
+    }
+
+    private void hideRaisePopupAnimated() {
+        if (raisePopupOverlay == null || !raisePopupOverlay.isVisible()) {
+            return;
+        }
+
+        FadeTransition fadeOut = new FadeTransition(Duration.millis(260), raisePopupOverlay);
+        fadeOut.setToValue(0);
+        fadeOut.setOnFinished(event -> {
+            raisePopupOverlay.setVisible(false);
+            raisePopupOverlay.setOpacity(1);
+        });
+        fadeOut.play();
+    }
+
+    private void playActionControlsReadyAnimation() {
+        playButtonReadyAnimation(foldButton, 0);
+        playButtonReadyAnimation(callButton, 170);
+        playButtonReadyAnimation(raiseButton, 340);
+    }
+
+    private void playButtonReadyAnimation(Button button, int delayMillis) {
+        if (button == null) {
+            return;
+        }
+
+        PauseTransition delay = new PauseTransition(Duration.millis(delayMillis));
+        ScaleTransition pop = new ScaleTransition(Duration.millis(230), button);
+        pop.setToX(1.07);
+        pop.setToY(1.07);
+
+        ScaleTransition settle = new ScaleTransition(Duration.millis(230), button);
+        settle.setToX(1);
+        settle.setToY(1);
+
+        delay.setOnFinished(event -> new SequentialTransition(pop, settle).play());
+        delay.play();
+    }
+
+    private void playCommunityCardAnimation(ImageView cardView, int cardIndex) {
+        if (cardView == null) {
+            return;
+        }
+
+        cardView.setOpacity(0);
+        cardView.setScaleX(0.68);
+        cardView.setScaleY(0.68);
+        cardView.setTranslateY(-38);
+        cardView.setRotate(-8);
+
+        PauseTransition delay = new PauseTransition(Duration.millis(cardIndex * 240L));
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(380), cardView);
+        fadeIn.setToValue(1);
+
+        ScaleTransition scaleIn = new ScaleTransition(Duration.millis(460), cardView);
+        scaleIn.setToX(1);
+        scaleIn.setToY(1);
+
+        TranslateTransition slideDown = new TranslateTransition(Duration.millis(460), cardView);
+        slideDown.setToY(0);
+
+        ParallelTransition reveal = new ParallelTransition(fadeIn, scaleIn, slideDown);
+        reveal.setOnFinished(event -> cardView.setRotate(0));
+        delay.setOnFinished(event -> reveal.play());
+        delay.play();
+    }
+
+    private void playPotPulse() {
+        if (chipsInfoLabel == null) {
+            return;
+        }
+
+        chipsInfoLabel.getStyleClass().remove("pot-pulse");
+        chipsInfoLabel.getStyleClass().add("pot-pulse");
+
+        ScaleTransition grow = new ScaleTransition(Duration.millis(260), chipsInfoLabel);
+        grow.setToX(1.09);
+        grow.setToY(1.09);
+
+        ScaleTransition settle = new ScaleTransition(Duration.millis(300), chipsInfoLabel);
+        settle.setToX(1);
+        settle.setToY(1);
+
+        PauseTransition cleanup = new PauseTransition(Duration.millis(700));
+        cleanup.setOnFinished(event -> chipsInfoLabel.getStyleClass().remove("pot-pulse"));
+
+        new SequentialTransition(grow, settle, cleanup).play();
+    }
+
+    private void playHandResultAnimation(List<String> winnerUsernames, int potSize) {
+        activeWinnerUsernames = winnerUsernames == null ? List.of() : new ArrayList<>(winnerUsernames);
+        activeWinnerPotSize = potSize;
+        startWinnerDisplayHold();
+        playPotPulse();
+        openAddBotWindow();
+        if (winnerUsernames == null) {
+            return;
+        }
+
+        for (String username : winnerUsernames) {
+            PlayerSeatController winnerController = seatControllerMap.get(username);
+            if (winnerController != null) {
+                winnerController.playWinnerAnimation(potSize);
+            }
+        }
+    }
+
+    private void openAddBotWindow() {
+        if (gameStatusLabel != null) {
+            gameStatusLabel.setText("Winner shown - add bots now");
+        }
+        if (addBotButton != null) {
+            addBotButton.setDisable(seatControllerMap.size() >= maxSeatsAtTable);
+        }
+    }
+
+    private void restoreWinnerDisplayAfterTableRefresh() {
+        openAddBotWindow();
+        if (activeWinnerUsernames.isEmpty()) {
+            return;
+        }
+
+        playPotPulse();
+        for (String username : activeWinnerUsernames) {
+            PlayerSeatController winnerController = seatControllerMap.get(username);
+            if (winnerController != null) {
+                winnerController.playWinnerAnimation(activeWinnerPotSize);
+            }
+        }
+    }
+
+    private void playActionFeedAnimation() {
+        if (actionFeedList == null) {
+            return;
+        }
+
+        actionFeedList.setOpacity(0.62);
+        actionFeedList.setTranslateY(14);
+
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(320), actionFeedList);
+        fadeIn.setToValue(1);
+
+        TranslateTransition slideUp = new TranslateTransition(Duration.millis(320), actionFeedList);
+        slideUp.setToY(0);
+
+        new ParallelTransition(fadeIn, slideUp).play();
+    }
+
+    private void playNextQueuedPlayerAction() {
+        if (actionAnimationRunning || winnerAnimationRunning || applyingDeferredTableSetup) {
+            return;
+        }
+
+        HandActionDTO action = pendingActionAnimations.poll();
+        if (action == null) {
+            applyDeferredVisualUpdates();
+            return;
+        }
+
+        PlayerSeatController controller = seatControllerMap.get(action.playerId());
+        if (controller == null) {
+            playNextQueuedPlayerAction();
+            return;
+        }
+
+        actionAnimationRunning = true;
+        disableBettingControls();
+        String actionText = formatActionText(action);
+        String actionType = actionDisplayType(action);
+
+        seatControllerMap.values().forEach(seat -> seat.setTurnActive(false));
+
+        PlayerSeatController previousController = seatControllerMap.get(lastAnimatedActionPlayer);
+        if (previousController != null && !action.playerId().equals(lastAnimatedActionPlayer)) {
+            previousController.playActionHandoffOut();
+        }
+
+        controller.playActionHandoffIn(actionText, actionType);
+        latestPlayerActions.put(action.playerId(), actionText);
+        appendActionFeed(action.playerId() + " " + actionText.toLowerCase());
+
+        if ("RAISE".equalsIgnoreCase(action.actionType()) || "CALL".equalsIgnoreCase(action.actionType())) {
+            this.localPotSize += action.amount();
+            playPotPulse();
+        }
+
+        PauseTransition focusPause = new PauseTransition(Duration.millis(650));
+        focusPause.setOnFinished(event -> {
+            controller.playActionAnimation(actionType, action.amount());
+        });
+
+        PauseTransition actionHold = new PauseTransition(Duration.millis(actionAnimationDuration(actionType)));
+        PauseTransition betweenActionsDelay = new PauseTransition(Duration.millis(650));
+        betweenActionsDelay.setOnFinished(event -> {
+            lastAnimatedActionPlayer = action.playerId();
+            actionAnimationRunning = false;
+            playNextQueuedPlayerAction();
+        });
+
+        new SequentialTransition(focusPause, actionHold, betweenActionsDelay).play();
+    }
+
+    private int actionAnimationDuration(String actionType) {
+        String normalizedAction = actionType == null ? "" : actionType.trim().toUpperCase();
+        return switch (normalizedAction) {
+            case "FOLD" -> 1900;
+            case "RAISE", "ALL_IN" -> 2300;
+            case "CALL", "CHECK" -> 1300;
+            default -> 1200;
+        };
+    }
+
+    private boolean isActionSequenceActive() {
+        return actionAnimationRunning || !pendingActionAnimations.isEmpty();
+    }
+
+    private boolean isVisualSequenceActive() {
+        return isActionSequenceActive() || winnerAnimationRunning;
+    }
+
+    private void startWinnerDisplayHold() {
+        winnerAnimationRunning = true;
+        disableBettingControls();
+
+        if (winnerDisplayHold != null) {
+            winnerDisplayHold.stop();
+        }
+
+        winnerDisplayHold = new PauseTransition(Duration.millis(WINNER_SCREEN_HOLD_MS));
+        winnerDisplayHold.setOnFinished(event -> {
+            winnerAnimationRunning = false;
+            winnerDisplayHold = null;
+            applyDeferredVisualUpdates();
+            activeWinnerUsernames = List.of();
+            activeWinnerPotSize = 0;
+        });
+        winnerDisplayHold.play();
+    }
+
+    private void applyDeferredVisualUpdates() {
+        if (winnerAnimationRunning || actionAnimationRunning) {
+            return;
+        }
+
+        if (hasDeferredGameState || deferredTableSnapshot != null) {
+            applyingDeferredTableSetup = true;
+
+            if (hasDeferredGameState) {
+                GameState state = deferredGameState;
+                deferredGameState = null;
+                hasDeferredGameState = false;
+                onGameStateChanged(state);
+            }
+
+            if (deferredTableSnapshot != null) {
+                GameMessageDTO snapshot = deferredTableSnapshot;
+                deferredTableSnapshot = null;
+                handleTableSnapshot(snapshot);
+            }
+
+            Platform.runLater(() -> {
+                applyingDeferredTableSetup = false;
+                if (!pendingActionAnimations.isEmpty()) {
+                    playNextQueuedPlayerAction();
+                } else {
+                    applyDeferredVisualUpdates();
+                }
+            });
+            return;
+        }
+
+        if (!pendingActionAnimations.isEmpty()) {
+            playNextQueuedPlayerAction();
+            return;
+        }
+
+        if (hasDeferredHandResult) {
+            List<String> winners = deferredWinnerUsernames;
+            HandResult hand = deferredWinnerHand;
+            int potSize = deferredWinnerPotSize;
+            deferredWinnerUsernames = null;
+            deferredWinnerHand = null;
+            deferredWinnerPotSize = 0;
+            hasDeferredHandResult = false;
+            onHandResult(winners, hand, potSize);
+            return;
+        }
+
+        if (deferredHandResultMessage != null) {
+            GameMessageDTO handResultMessage = deferredHandResultMessage;
+            deferredHandResultMessage = null;
+            handleHandResultMessage(handResultMessage);
+            return;
+        }
+
+        if (hasDeferredTurnPrompt) {
+            String username = deferredTurnUsername;
+            int amountToCall = deferredTurnAmountToCall;
+            deferredTurnUsername = null;
+            deferredTurnAmountToCall = 0;
+            hasDeferredTurnPrompt = false;
+            onPlayerTurn(username, amountToCall);
         }
     }
 
@@ -523,8 +970,28 @@ public class GameController implements IGameEventListener {
     }
 
     private String formatActionText(HandActionDTO action) {
+        String actionType = action.actionType() == null ? "" : action.actionType().trim().toUpperCase();
+        if ("FOLD".equals(actionType)) {
+            return "FOLDED - OUT";
+        }
+        if ("CALL".equalsIgnoreCase(action.actionType()) && action.amount() == 0) {
+            return "CHECKS";
+        }
+        if ("CALL".equals(actionType)) {
+            return action.amount() > 0 ? "CALLS $" + action.amount() : "CALLS";
+        }
+        if ("RAISE".equals(actionType)) {
+            return action.amount() > 0 ? "RAISES $" + action.amount() : "RAISES";
+        }
         if (action.amount() > 0) {
             return action.actionType() + " $" + action.amount();
+        }
+        return action.actionType();
+    }
+
+    private String actionDisplayType(HandActionDTO action) {
+        if ("CALL".equalsIgnoreCase(action.actionType()) && action.amount() == 0) {
+            return "CHECK";
         }
         return action.actionType();
     }
@@ -539,6 +1006,7 @@ public class GameController implements IGameEventListener {
             actionFeedList.getItems().remove(0);
         }
         actionFeedList.scrollTo(actionFeedList.getItems().size() - 1);
+        playActionFeedAnimation();
     }
 
     private int getLocalChipCount() {
@@ -554,6 +1022,10 @@ public class GameController implements IGameEventListener {
     }
 
     private void enableBettingControls() {
+        if (isVisualSequenceActive()) {
+            disableBettingControls();
+            return;
+        }
         if (foldButton != null) foldButton.setDisable(false);
         if (callButton != null) callButton.setDisable(false);
         if (raiseButton != null) raiseButton.setDisable(false);

@@ -1,0 +1,14 @@
+# Build outputs
+target/
+out/
+**/target/
+
+# IDE and local runtime files
+.idea/
+*.iml
+.codex-intellij-config/
+.codex-intellij-system/
+
+# Logs and temporary files
+*.log
+*.tmp
