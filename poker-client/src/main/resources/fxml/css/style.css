@@ -137,6 +137,12 @@
     -fx-font-weight: bold;
 }
 
+.bankroll-text {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
 /* The Table Card Container */
 .table-card {
     -fx-background-color: #2b2b2b;
@@ -159,6 +165,71 @@
 .card-detail {
     -fx-text-fill: #cccccc;
     -fx-font-size: 14px;
+}
+
+/* --- Player Profile Styles --- */
+.profile-name {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 34px;
+    -fx-font-weight: bold;
+}
+
+.profile-subtitle {
+    -fx-text-fill: #B0C9B9;
+    -fx-font-size: 15px;
+}
+
+.profile-stat-box {
+    -fx-background-color: #2b2b2b;
+    -fx-border-color: #2e8b57;
+    -fx-border-width: 2px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-padding: 22px 34px;
+    -fx-min-width: 210px;
+}
+
+.profile-stat-label {
+    -fx-text-fill: #B0C9B9;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.profile-stat-value {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+}
+
+.profile-stat-value-small {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.profile-detail-grid {
+    -fx-background-color: rgba(0, 0, 0, 0.28);
+    -fx-background-radius: 8px;
+    -fx-border-color: #4C7D5F;
+    -fx-border-radius: 8px;
+    -fx-padding: 22px;
+    -fx-max-width: 620px;
+}
+
+.profile-detail-key {
+    -fx-text-fill: #B0C9B9;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.profile-detail-value {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 14px;
+}
+
+.profile-status-text {
+    -fx-text-fill: #B0C9B9;
+    -fx-font-size: 13px;
 }
 
 .player-box {
@@ -234,6 +305,50 @@
     -fx-effect: none;
     -fx-cursor: default;
     -fx-translate-y: 0;
+}
+
+.table-tool-btn {
+    -fx-background-color: #D4AF37;
+    -fx-text-fill: #1A1A1A;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 18;
+    -fx-padding: 8 22 8 22;
+    -fx-cursor: hand;
+    -fx-min-width: 110px;
+}
+
+.table-tool-btn:hover {
+    -fx-background-color: #F1C40F;
+}
+
+.table-tool-btn:disabled {
+    -fx-background-color: #4C7D5F;
+    -fx-text-fill: #8BB299;
+    -fx-cursor: default;
+}
+
+.leave-table-btn {
+    -fx-background-color: #666666;
+    -fx-text-fill: #FFFFFF;
+}
+
+.leave-table-btn:hover {
+    -fx-background-color: #888888;
+}
+
+.action-feed {
+    -fx-background-color: rgba(0, 0, 0, 0.35);
+    -fx-border-color: #4C7D5F;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 4;
+}
+
+.action-feed .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
 }
 
 /* ==========================================================================

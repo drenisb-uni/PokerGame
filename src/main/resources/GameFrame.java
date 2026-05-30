@@ -6,7 +6,7 @@ import java.util.ArrayList;
 
 public class GameFrame extends JFrame implements ActionListener {
 
-    private PokerGame pokerGame;
+    private scPokerGame pokerGame;
 
     private int boardWidth = 1024;
     private int boardHeight = 703;

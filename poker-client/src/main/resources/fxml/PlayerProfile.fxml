@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane fx:controller="pokergame.client.view.controllers.PlayerProfileController"
+            prefHeight="760.0" prefWidth="1200.0"
+            stylesheets="@css/style.css" styleClass="root-pane"
+            xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1">
+
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="20.0" style="-fx-padding: 24 40 18 40;">
+            <Label text="Player Profile" styleClass="title-text" />
+            <Region HBox.hgrow="ALWAYS" />
+            <Button text="Back to Lobby" onAction="#handleBackToLobby" styleClass="secondary-button" />
+        </HBox>
+    </top>
+
+    <center>
+        <VBox alignment="TOP_CENTER" spacing="24.0" maxWidth="720.0">
+            <padding>
+                <Insets top="28.0" right="40.0" bottom="40.0" left="40.0" />
+            </padding>
+
+            <VBox alignment="CENTER" spacing="8.0">
+                <Label fx:id="usernameTitleLabel" text="Username" styleClass="profile-name" />
+                <Label fx:id="emailTitleLabel" text="email@example.com" styleClass="profile-subtitle" />
+            </VBox>
+
+            <HBox alignment="CENTER" spacing="18.0">
+                <VBox alignment="CENTER" spacing="6.0" styleClass="profile-stat-box">
+                    <Label text="Bankroll" styleClass="profile-stat-label" />
+                    <Label fx:id="bankrollLabel" text="0" styleClass="profile-stat-value" />
+                </VBox>
+
+                <VBox alignment="CENTER" spacing="6.0" styleClass="profile-stat-box">
+                    <Label text="Account" styleClass="profile-stat-label" />
+                    <Label fx:id="createdAtLabel" text="Unknown" styleClass="profile-stat-value-small" />
+                </VBox>
+            </HBox>
+
+            <GridPane hgap="18.0" vgap="14.0" styleClass="profile-detail-grid">
+                <columnConstraints>
+                    <ColumnConstraints minWidth="150.0" />
+                    <ColumnConstraints hgrow="ALWAYS" />
+                </columnConstraints>
+
+                <Label text="Username" styleClass="profile-detail-key" GridPane.rowIndex="0" GridPane.columnIndex="0" />
+                <Label fx:id="usernameValueLabel" text="-" styleClass="profile-detail-value" GridPane.rowIndex="0" GridPane.columnIndex="1" />
+
+                <Label text="Email" styleClass="profile-detail-key" GridPane.rowIndex="1" GridPane.columnIndex="0" />
+                <Label fx:id="emailValueLabel" text="-" styleClass="profile-detail-value" GridPane.rowIndex="1" GridPane.columnIndex="1" />
+
+                <Label text="Player ID" styleClass="profile-detail-key" GridPane.rowIndex="2" GridPane.columnIndex="0" />
+                <Label fx:id="playerIdLabel" text="-" styleClass="profile-detail-value" GridPane.rowIndex="2" GridPane.columnIndex="1" />
+
+                <Label text="Total Bankroll" styleClass="profile-detail-key" GridPane.rowIndex="3" GridPane.columnIndex="0" />
+                <Label fx:id="bankrollValueLabel" text="-" styleClass="profile-detail-value" GridPane.rowIndex="3" GridPane.columnIndex="1" />
+            </GridPane>
+
+            <HBox alignment="CENTER" spacing="16.0">
+                <Button text="Return to Lobby" onAction="#handleBackToLobby" styleClass="primary-button" />
+                <Button text="Log Out" onAction="#handleLogout" styleClass="secondary-button" />
+            </HBox>
+
+            <Label fx:id="statusLabel" text="" styleClass="profile-status-text" />
+        </VBox>
+    </center>
+
+</BorderPane>

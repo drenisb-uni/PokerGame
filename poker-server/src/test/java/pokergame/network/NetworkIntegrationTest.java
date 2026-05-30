@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import pokergame.GameContext;
+import pokergame.server.bot.BotManager;
 import pokergame.server.engine.GameCommandProcessor;
 import pokergame.server.engine.PokerGameEngine;
 import pokergame.server.network.PokerWebSocketServer;
@@ -22,6 +23,7 @@ public class NetworkIntegrationTest {
     private PokerWebSocketServer server;
     private GameCommandProcessor processor;
     private PokerGameEngine engine;
+    private BotManager botManager;
     private final ObjectMapper mapper = new ObjectMapper();
     private static final int TEST_PORT = 9876;
 
@@ -30,9 +32,10 @@ public class NetworkIntegrationTest {
 //        IPlayerRepository mockRepo = Mockito.mock(IPlayerRepository.class);
         engine = GameContext.getPokerGameEngine();
         processor = new GameCommandProcessor(engine);
+        botManager = new BotManager(processor, engine);
 
         // Boot up our actual custom server on an isolated test port
-        server = new PokerWebSocketServer(TEST_PORT, processor);
+        server = new PokerWebSocketServer(TEST_PORT, processor, engine, botManager);
         server.start();
 
         // Brief sleep to let the TCP socket bind smoothly
