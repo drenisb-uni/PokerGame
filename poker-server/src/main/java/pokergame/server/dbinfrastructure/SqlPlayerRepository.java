@@ -87,7 +87,7 @@ public class SqlPlayerRepository implements IPlayerRepository {
 
     @Override
     public void updateProfile(PlayerProfileDTO profile) {
-        String sql = "UPDATE players SET username = ?, email = ?, password_hash = ?, total_bankroll = ? WHERE id = ?";
+        String sql = "UPDATE player_profiles SET username = ?, email = ?, password_hash = ?, total_bankroll = ? WHERE id = ?";
 
         try (Connection conn = getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {

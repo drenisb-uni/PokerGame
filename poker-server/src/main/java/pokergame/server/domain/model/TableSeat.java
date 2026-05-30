@@ -13,6 +13,8 @@ public class TableSeat {
     private List<Card> holeCards;
     private boolean isFolded;
     private int currentRoundBet;
+    private int bankrollBase;
+    private boolean bankrollTracked;
 
     public TableSeat(PlayerProfileDTO profile, int buyInAmount) {
         this.profile = profile;
@@ -28,6 +30,8 @@ public class TableSeat {
 
     public String getUsername() { return this.profile.username(); }
 
+    public PlayerProfileDTO getProfile() { return this.profile; }
+
     public int getChipsOnTable() { return this.chipsOnTable; }
 
     public void addChipsOnTable(int chipsOnTable) {
@@ -36,6 +40,10 @@ public class TableSeat {
 
     public int getSeatIndex() {
         return seatIndex;
+    }
+
+    public void setSeatIndex(int seatIndex) {
+        this.seatIndex = seatIndex;
     }
 
     public List<Card> getHoleCards() { return this.holeCards; }
@@ -51,4 +59,17 @@ public class TableSeat {
     public int getCurrentRoundBet() { return this.currentRoundBet; }
 
     public void clearCards(){ holeCards.clear(); }
+
+    public void trackBankrollFromBase(int bankrollBase) {
+        this.bankrollBase = bankrollBase;
+        this.bankrollTracked = true;
+    }
+
+    public int getBankrollBase() {
+        return bankrollBase;
+    }
+
+    public boolean isBankrollTracked() {
+        return bankrollTracked;
+    }
 }

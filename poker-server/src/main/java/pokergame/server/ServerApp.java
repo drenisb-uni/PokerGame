@@ -4,6 +4,7 @@ import io.javalin.Javalin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.javalin.json.JavalinJackson;
+import pokergame.server.bot.BotManager;
 
 import pokergame.domain.dto.LoginRequestDTO;
 import pokergame.domain.dto.PlayerProfileDTO;
@@ -25,6 +26,8 @@ public class ServerApp {
 
         PokerGameEngine gameEngine = new PokerGameEngine(playerRepository);
         GameCommandProcessor commandProcessor = new GameCommandProcessor(gameEngine);
+        BotManager botManager = new BotManager(commandProcessor, gameEngine);
+        gameEngine.addObserver(botManager);
 
         // 2. Start the HTTP API Server for Secure Login/Registration (Port 8080)
         Javalin httpApp = Javalin.create(config -> {
@@ -70,7 +73,8 @@ public class ServerApp {
         });
 
         // 3. Start the Dedicated Game Loop WebSocket Server (Port 8081)
-        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor);
+        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, gameEngine, botManager);
+        gameEngine.addObserver(wsServer);
         wsServer.start();
 
         System.out.println(">>> Server fully booted. Listening for HTTP on 8080, WebSockets on 8081 <<<");
