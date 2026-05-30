@@ -23,6 +23,47 @@
 
 ---
 
+### Prerequisites
+* **Java 21** (or higher)
+* **Maven 3.8+**
+* **MySQL 8.0+** (Running locally or via Docker)
+
+### Build and Run Instructions
+
+1. **Clone the repository & build the project:**
+   ```bash
+   git clone https://github.com/drenisb-uni/PokerGame.git
+   cd poker-engine
+   mvn clean install
+   ```
+
+2. **Configure Database:**
+   Update the `application.properties` in the `poker-server` module to point to your local MySQL instance. The `HikariCP` pool will handle connection initialization.
+
+3. **Start the Server:**
+   ```bash
+   cd poker-server
+   mvn exec:java -Dexec.mainClass="pokergame.server.ServerApp"
+   ```
+
+4. **Launch the Client(s):**
+   Open a new terminal to start a human player client instance:
+   ```bash
+   cd poker-client
+   mvn javafx:run -DmainClass="pokergame.client.Launcher"
+   ```
+   *(Note: You can run this command in multiple terminal windows to simulate multiple players at the same table).*
+
+### Project Structure
+```text
+poker-engine/
+├── poker-common/    # Immutable DTOs and shared network language (GameMessageDTO)
+├── poker-client/    # JavaFX UI, WebSocket Client, EventBus Pub/Sub
+└── poker-server/    # Core Game Engine, Command Queue, Javalin/WebSocket backend
+```
+
+---
+
 # Project Overview
 
 ## Purpose of the System
@@ -122,6 +163,57 @@ The application is divided into three primary modules:
 poker-common
 poker-client
 poker-server
+```
+The architecture is strictly separated to ensure that UI rendering code never touches networking code, and networking code never directly mutates the state of the poker game.
+
+```mermaid
+flowchart TB
+    subgraph Client ["Client Module (JavaFX)"]
+        UI["JavaFX UI (Lobby / Table)"]
+        EB["EventBus (Pub/Sub)"]
+        HTTP_Client["HTTP Client (Auth)"]
+        WS_Client["GameWebSocketClient"]
+        
+        UI <--> EB
+        EB <--> WS_Client
+        UI --> HTTP_Client
+    end
+
+    subgraph Server ["Server Module"]
+        subgraph Network ["Networking Layer"]
+            Javalin["Javalin REST (Port 8080)"]
+            WS_Server["WebSocket Server (Port 8081)"]
+        end
+
+        subgraph Core ["Business Logic & Engine"]
+            AuthService["ServerAuthService"]
+            NetService["GameNetworkService"]
+            Queue["GameCommandProcessor (Queue)"]
+            Engine["PokerGameEngine"]
+            Pot["BettingPot"]
+            Ranker["HandRanker"]
+        end
+
+        subgraph Infra ["Infrastructure Layer"]
+            Repo["SqlPlayerRepository"]
+            DB[("MySQL (HikariCP)")]
+        end
+    end
+
+    %% Connections
+    HTTP_Client -->|Login/Register| Javalin
+    WS_Client <-->|GameMessageDTO| WS_Server
+    
+    Javalin --> AuthService
+    AuthService --> Repo
+    Repo --> DB
+    
+    WS_Server <--> NetService
+    NetService -->|PlayerCommand| Queue
+    Queue -->|Executes Sequentially| Engine
+    Engine <--> Pot
+    Engine --> Ranker
+    Engine -->|Broadcast State| NetService
 ```
 
 ---
@@ -238,7 +330,46 @@ JavaFX EventBus
     ↓
 UI Rendering
 ```
+To support massive multiplayer concurrency without state corruption or financial anomalies, the system strictly relies on **Thread Confinement and Sequential Queuing**. The diagram below demonstrates how a concurrent action is safely processed.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor P1 as Player 1 (JavaFX)
+    participant C1 as Player 1 WS Client
+    participant Net as GameNetworkService
+    participant Queue as GameCommandProcessor
+    participant Eng as PokerGameEngine
+    participant C2 as Player 2 WS Client
+
+    P1->>C1: Clicks "Bet $50"
+    C1->>Net: Sends JSON (type: "BET", payload: 50)
+    
+    Note over Net: Deserializes JSON via Jackson
+    Net->>Net: PlayerCommand.fromNetworkMessage()
+    Net->>Queue: commandQueue.add(BetCommand)
+    
+    Note over Queue: Background Daemon Thread
+    Queue->>Queue: Polls Command
+    Queue->>Eng: command.execute(Engine)
+    
+    Note over Eng: Validates Turn & Balance
+    Eng->>Eng: Deduct $50 from P1
+    Eng->>Eng: Add $50 to BettingPot
+    Eng->>Eng: Advance GameState / Turn
+    
+    Eng->>Net: broadcast(newStateDTO)
+    
+    par Broadcast to all players
+        Net->>C1: Sends JSON (newStateDTO)
+        Net->>C2: Sends JSON (newStateDTO)
+    end
+    
+    C1->>P1: EventBus pushes UI Update (Platform.runLater)
+    C2->>C2: EventBus pushes UI Update
+```
+
+---
 ---
 
 # Core Architectural Decisions
