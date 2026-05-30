@@ -19,7 +19,8 @@
 
             <Region HBox.hgrow="ALWAYS" />
 
-            <Button text="My Profile" onAction="#handleProfile" styleClass="secondary-button" />
+            <Label fx:id="bankrollLabel" text="Bankroll: $0" styleClass="bankroll-text" />
+            <Button text="Profile" onAction="#handleProfile" styleClass="secondary-button" />
         </HBox>
     </top>
 
@@ -27,6 +28,7 @@
         <VBox alignment="CENTER" spacing="15.0">
             <Button text="Play Now" onAction="#handlePlayNow" styleClass="primary-button, massive-btn" />
             <Label text="Quickly join the next available game" style="-fx-text-fill: #aaaaaa; -fx-font-size: 14px;" />
+            <Label fx:id="joinStatusLabel" text="" styleClass="error-label" />
         </VBox>
     </center>
 
@@ -38,20 +40,20 @@
 
                 <VBox styleClass="table-card" spacing="12.0">
                     <Label text="Host: Daniel Negreanu" styleClass="card-title" />
-                    <Label text="Starting Pot: $500" styleClass="card-detail" />
-                    <Button text="Join Table" onAction="#handleJoinTable" styleClass="primary-button" maxWidth="1.7976931348623157E308" />
+                    <Label text="Buy-in: $500" styleClass="card-detail" />
+                    <Button fx:id="danielTableButton" text="Join Table" onAction="#handleJoinDanielTable" styleClass="primary-button" maxWidth="1.7976931348623157E308" />
                 </VBox>
 
                 <VBox styleClass="table-card" spacing="12.0">
                     <Label text="Host: Phil Ivey" styleClass="card-title" />
-                    <Label text="Starting Pot: $10,000" styleClass="card-detail" />
-                    <Button text="Join Table" onAction="#handleJoinTable" styleClass="primary-button" maxWidth="1.7976931348623157E308" />
+                    <Label text="Buy-in: $10,000" styleClass="card-detail" />
+                    <Button fx:id="philTableButton" text="Join Table" onAction="#handleJoinPhilTable" styleClass="primary-button" maxWidth="1.7976931348623157E308" />
                 </VBox>
 
                 <VBox styleClass="table-card" spacing="12.0">
                     <Label text="Host: Local Game" styleClass="card-title" />
-                    <Label text="Starting Pot: $50" styleClass="card-detail" />
-                    <Button text="Join Table" onAction="#handleJoinTable" styleClass="primary-button" maxWidth="1.7976931348623157E308" />
+                    <Label text="Buy-in: $50" styleClass="card-detail" />
+                    <Button fx:id="localTableButton" text="Join Table" onAction="#handleJoinLocalTable" styleClass="primary-button" maxWidth="1.7976931348623157E308" />
                 </VBox>
 
             </HBox>

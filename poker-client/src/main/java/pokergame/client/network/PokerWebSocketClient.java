@@ -15,6 +15,7 @@ public class PokerWebSocketClient extends WebSocketClient {
 
     // 1. The Singleton Instance
     private static PokerWebSocketClient instance;
+    private static String activeUri;
 
     // 2. The embedded Jackson Mapper (re-using our JavaTime fix!)
     private final ObjectMapper mapper;
@@ -32,10 +33,14 @@ public class PokerWebSocketClient extends WebSocketClient {
     public static boolean connect(String uriString) {
         try {
             if (instance != null && instance.isOpen()) {
-                return true; // We are already safely connected
+                if (uriString.equals(activeUri)) {
+                    return true;
+                }
+                instance.closeBlocking();
             }
 
             instance = new PokerWebSocketClient(new URI(uriString));
+            activeUri = uriString;
 
             // connectBlocking() waits for the full TCP/WS handshake to finish.
             // It returns true if successful, false if the server rejected us.

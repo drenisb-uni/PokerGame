@@ -29,6 +29,10 @@ public class SessionManager {
         return activeConnections.get(socket);
     }
 
+    public java.util.List<String> getConnectedPlayerIds() {
+        return java.util.List.copyOf(playerConnections.keySet());
+    }
+
     /**
      * Sends a message to a single, specific player (perfect for sending private hole cards!).
      */

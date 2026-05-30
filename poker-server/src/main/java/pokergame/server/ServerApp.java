@@ -4,6 +4,7 @@ import io.javalin.Javalin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.javalin.json.JavalinJackson;
+import pokergame.server.bot.BotManager;
 
 import pokergame.server.dbinfrastructure.HikariDSProvider;
 import pokergame.server.dbinfrastructure.SqlPlayerRepository;
@@ -23,6 +24,8 @@ public class ServerApp {
 
         PokerGameEngine gameEngine = new PokerGameEngine(playerRepository);
         GameCommandProcessor commandProcessor = new GameCommandProcessor(gameEngine);
+        BotManager botManager = new BotManager(commandProcessor, gameEngine);
+        gameEngine.addObserver(botManager);
 
         HttpRouteService httpRouteService = new HttpRouteService(authService);
         GameNetworkService gameNetworkService = new GameNetworkService(commandProcessor);
