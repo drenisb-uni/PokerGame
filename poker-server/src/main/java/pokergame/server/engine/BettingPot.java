@@ -9,6 +9,10 @@ public class BettingPot {
     private int smallBlindAmount = 10;
     private int playersToAct = 0;
 
+    public void setSmallBlindAmount(int smallBlindAmount) {
+        this.smallBlindAmount = Math.max(1, smallBlindAmount);
+    }
+
     public void resetRound(TableManager tableManager) {
         this.highestBetThisRound = 0;
 
@@ -82,7 +86,16 @@ public class BettingPot {
     public int getPotSize() { return potSize; }
     public int getFoldedPot() { return foldedPot; }
     public int getHighestBet() { return highestBetThisRound; }
+    public int getSmallBlindAmount() { return smallBlindAmount; }
+    public int getBigBlindAmount() { return smallBlindAmount * 2; }
     public void setPlayersToAct(int count) { this.playersToAct = count; }
     public void decrementPlayersToAct() { this.playersToAct--; }
     public void clearPot() { this.potSize = 0; }
+
+    public void resetAll() {
+        this.potSize = 0;
+        this.foldedPot = 0;
+        this.highestBetThisRound = 0;
+        this.playersToAct = 0;
+    }
 }

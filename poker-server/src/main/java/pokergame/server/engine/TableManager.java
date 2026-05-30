@@ -38,6 +38,10 @@ public class TableManager {
         return tableSeats.stream().filter(s -> s.getUsername().equals(username)).findFirst();
     }
 
+    public boolean removeByUsername(String username) {
+        return tableSeats.removeIf(seat -> seat.getUsername().equals(username));
+    }
+
     public List<TableSeat> getActivePlayers() {
         return tableSeats.stream().filter(seat -> !seat.isFolded()).toList();
     }
