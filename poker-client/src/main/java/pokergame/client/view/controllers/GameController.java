@@ -6,13 +6,18 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import pokergame.GameContext;
+import pokergame.client.network.OutboundActionPayload;
+import pokergame.client.network.PokerWebSocketClient;
 import pokergame.client.utils.EventBus;
+import pokergame.client.view.SceneManager;
 import pokergame.domain.dto.GameMessageDTO;
 import pokergame.domain.dto.HandActionDTO;
 import pokergame.domain.dto.HandParticipantDTO;
@@ -35,9 +40,13 @@ public class GameController implements IGameEventListener {
     private ImageView[] communityCards;
     @FXML private FlowPane playersContainer;
     @FXML private Label chipsInfoLabel;
+    @FXML private Label gameStatusLabel;
     @FXML private Button foldButton;
     @FXML private Button callButton;
     @FXML private Button raiseButton;
+    @FXML private Button addBotButton;
+    @FXML private Button leaveTableButton;
+    @FXML private ListView<String> actionFeedList;
 
     // Raise Popup Elements
     @FXML private StackPane raisePopupOverlay;
@@ -49,6 +58,7 @@ public class GameController implements IGameEventListener {
 
     // --- GAME STATE VARIABLES ---
     private final Map<String, PlayerSeatController> seatControllerMap = new HashMap<>();
+    private final Map<String, String> latestPlayerActions = new HashMap<>();
     private int currentCommunityCardIndex = 0;
     private int currentAmountToCall = 0;
     private int localPotSize = 0;
@@ -62,6 +72,18 @@ public class GameController implements IGameEventListener {
         EventBus.subscribe("DEAL_CARDS", this::handleDealCards);
         EventBus.subscribe("PLAYER_FOLDED", this::handlePlayerFold);
         EventBus.subscribe("CHAT_MESSAGE", this::handleChat);
+        EventBus.subscribe("TABLE_SNAPSHOT", this::handleTableSnapshot);
+        EventBus.subscribe("GAME_STATE", this::handleGameStateMessage);
+        EventBus.subscribe("TURN_PROMPT", this::handleTurnPrompt);
+        EventBus.subscribe("COMMUNITY_CARDS", this::handleCommunityCardsMessage);
+        EventBus.subscribe("PLAYER_ACTION", this::handlePlayerActionMessage);
+        EventBus.subscribe("HAND_RESULT", this::handleHandResultMessage);
+
+        if (GameContext.getPlayerProfile() != null) {
+            localUsername = GameContext.getPlayerProfile().username();
+        }
+
+        Platform.runLater(() -> sendAction("REFRESH_TABLE", 0));
 
         System.out.println("[Table UI] Listening for game events...");
     }
@@ -79,21 +101,18 @@ public class GameController implements IGameEventListener {
 
     @FXML
     public void handleFold(ActionEvent event) {
-        if (actionAPI == null) return;
         disableBettingControls();
-        actionAPI.Fold(localUsername);
+        sendAction("FOLD", 0);
     }
 
     @FXML
     public void handleCall(ActionEvent event) {
-        if (actionAPI == null) return;
         disableBettingControls();
-        actionAPI.Call(localUsername);
+        sendAction("CALL", 0);
     }
 
     @FXML
     public void handleConfirmRaise(ActionEvent event) {
-        if (actionAPI == null) return;
         try {
             int amount = Integer.parseInt(raiseAmountInput.getText().trim());
 
@@ -105,7 +124,7 @@ public class GameController implements IGameEventListener {
             disableBettingControls();
             raisePopupOverlay.setVisible(false);
 
-            actionAPI.Raise(localUsername, amount);
+            sendAction("RAISE", amount);
 
         } catch (NumberFormatException e) {
             System.out.println("Please enter a valid number.");
@@ -114,7 +133,6 @@ public class GameController implements IGameEventListener {
 
     @FXML
     public void handleAllIn(ActionEvent event) {
-        if (actionAPI == null) return;
         disableBettingControls();
         raisePopupOverlay.setVisible(false);
 
@@ -122,7 +140,22 @@ public class GameController implements IGameEventListener {
         PlayerSeatController localSeat = seatControllerMap.get(localUsername);
         int playerTotalChips = (localSeat != null) ? localSeat.getCurrentChips() : 0;
 
-        actionAPI.Raise(localUsername, playerTotalChips);
+        sendAction("RAISE", playerTotalChips);
+    }
+
+    @FXML
+    public void handleAddBot(ActionEvent event) {
+        sendAction("ADD_BOT", 0);
+    }
+
+    @FXML
+    public void handleLeaveTable(ActionEvent event) {
+        sendAction("LEAVE_TABLE", 0);
+        PokerWebSocketClient client = PokerWebSocketClient.getInstance();
+        if (client != null && client.isOpen()) {
+            client.close();
+        }
+        SceneManager.switchScene("Lobby.fxml");
     }
 
     @FXML
@@ -143,13 +176,26 @@ public class GameController implements IGameEventListener {
         Platform.runLater(() -> {
             switch (newState) {
                 case WAITING_FOR_PLAYERS:
+                    if (gameStatusLabel != null) gameStatusLabel.setText("Waiting for players...");
+                    break;
                 case PRE_FLOP_BETTING:
+                    if (gameStatusLabel != null) gameStatusLabel.setText("Pre-flop");
                     currentCommunityCardIndex = 0;
                     for (ImageView iv : communityCards) {
                         iv.setImage(null);
                     }
                     break;
+                case FLOP_BETTING:
+                    if (gameStatusLabel != null) gameStatusLabel.setText("Flop");
+                    break;
+                case TURN_BETTING:
+                    if (gameStatusLabel != null) gameStatusLabel.setText("Turn");
+                    break;
+                case RIVER_BETTING:
+                    if (gameStatusLabel != null) gameStatusLabel.setText("River");
+                    break;
                 case HAND_OVER:
+                    if (gameStatusLabel != null) gameStatusLabel.setText("Showing cards...");
                     disableBettingControls();
                     break;
                 default:
@@ -206,7 +252,10 @@ public class GameController implements IGameEventListener {
         Platform.runLater(() -> {
             PlayerSeatController controller = seatControllerMap.get(action.playerId());
             if (controller != null) {
-                controller.setAction(action.actionType() + (action.amount() > 0 ? " $" + action.amount() : ""));
+                String actionText = formatActionText(action);
+                controller.setAction(actionText);
+                latestPlayerActions.put(action.playerId(), actionText);
+                appendActionFeed(action.playerId() + " " + actionText.toLowerCase());
 
                 if ("RAISE".equalsIgnoreCase(action.actionType()) || "CALL".equalsIgnoreCase(action.actionType())) {
                     this.localPotSize += action.amount();
@@ -283,10 +332,225 @@ public class GameController implements IGameEventListener {
         // TODO: Append event.payload() to the chat box UI
     }
 
+    private void handleTableSnapshot(GameMessageDTO event) {
+        Platform.runLater(() -> {
+            Map<String, Object> payload = asMap(event.payload());
+            List<?> seats = asList(payload.get("seats"));
+            int maxSeats = asInt(payload.get("maxSeats"), 6);
+            int potSize = asInt(payload.get("potSize"), this.localPotSize);
+            String gameState = asString(payload.get("gameState"));
+            int tableBuyIn = asInt(payload.get("tableBuyIn"), 0);
+            int smallBlind = asInt(payload.get("smallBlind"), 0);
+            int bigBlind = asInt(payload.get("bigBlind"), 0);
+
+            playersContainer.getChildren().clear();
+            seatControllerMap.clear();
+            this.localPotSize = potSize;
+
+            for (Object seatPayload : seats) {
+                Map<String, Object> seatMap = asMap(seatPayload);
+                HandParticipantDTO participant = new HandParticipantDTO(
+                        asString(seatMap.get("handId")),
+                        asString(seatMap.get("playerUsername")),
+                        asInt(seatMap.get("seatIndex"), 0),
+                        asString(seatMap.get("holeCards")),
+                        asInt(seatMap.get("startChips"), 0),
+                        asInt(seatMap.get("endChips"), 0),
+                        asInt(seatMap.get("netProfit"), 0),
+                        Boolean.TRUE.equals(seatMap.get("winner")) || Boolean.TRUE.equals(seatMap.get("isWinner"))
+                );
+                renderSeat(participant);
+            }
+
+            if (addBotButton != null) {
+                boolean handInProgress = !gameState.isBlank()
+                        && !"WAITING_FOR_PLAYERS".equals(gameState)
+                        && !"HAND_OVER".equals(gameState);
+                addBotButton.setDisable(seats.size() >= maxSeats || handInProgress);
+            }
+
+            if (gameStatusLabel != null) {
+                if (seats.size() < 2) {
+                    gameStatusLabel.setText(tableLabel(tableBuyIn, smallBlind, bigBlind) + " | Waiting for players...");
+                } else if ("HAND_OVER".equals(gameState)) {
+                    gameStatusLabel.setText("Showing cards...");
+                } else if (!gameState.isBlank()) {
+                    gameStatusLabel.setText(tableLabel(tableBuyIn, smallBlind, bigBlind));
+                }
+            }
+
+            if (!"HAND_OVER".equals(gameState)) {
+                chipsInfoLabel.setText("Your Chips: $" + getLocalChipCount() + "  |  Pot: $" + this.localPotSize);
+            }
+        });
+    }
+
+    private void handleGameStateMessage(GameMessageDTO event) {
+        try {
+            GameState state = GameState.valueOf(asString(event.payload()));
+            if (state == GameState.PRE_FLOP_BETTING) {
+                latestPlayerActions.clear();
+                if (actionFeedList != null) {
+                    actionFeedList.getItems().clear();
+                }
+            }
+            onGameStateChanged(state);
+        } catch (Exception e) {
+            System.err.println("Could not read game state update: " + event.payload());
+        }
+    }
+
+    private void handleTurnPrompt(GameMessageDTO event) {
+        Map<String, Object> payload = asMap(event.payload());
+        onPlayerTurn(asString(payload.get("username")), asInt(payload.get("amountToCall"), 0));
+    }
+
+    private void handleCommunityCardsMessage(GameMessageDTO event) {
+        List<Card> cards = new ArrayList<>();
+        for (Object item : asList(event.payload())) {
+            Map<String, Object> cardMap = asMap(item);
+            cards.add(new Card(asInt(cardMap.get("value"), 0), asString(cardMap.get("suit"))));
+        }
+        onCommunityCardsDealt(cards);
+    }
+
+    private void handlePlayerActionMessage(GameMessageDTO event) {
+        Map<String, Object> payload = asMap(event.payload());
+        onPlayerAction(new HandActionDTO(
+                asInt(payload.get("id"), 0),
+                asString(payload.get("handId")),
+                asString(payload.get("playerId")),
+                asString(payload.get("roundStage")),
+                asInt(payload.get("sequenceNumber"), 0),
+                asString(payload.get("actionType")),
+                asInt(payload.get("amount"), 0)
+        ));
+    }
+
+    private void handleHandResultMessage(GameMessageDTO event) {
+        Platform.runLater(() -> {
+            Map<String, Object> payload = asMap(event.payload());
+            String winners = String.join(" ", asStringList(payload.get("winnerUsernames")));
+            String hand = asString(payload.get("winnerHand"));
+            int potSize = asInt(payload.get("potSize"), 0);
+            chipsInfoLabel.setText(winners + " won $" + potSize + " with " + (hand.isBlank() ? "Muck" : hand.replace("_", " ")));
+            appendActionFeed(winners + " won $" + potSize);
+            localPotSize = 0;
+        });
+    }
+
+    private void renderSeat(HandParticipantDTO participant) {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PlayerSeat.fxml"));
+            VBox seatUI = loader.load();
+
+            PlayerSeatController controller = loader.getController();
+            controller.setup(participant);
+            if (latestPlayerActions.containsKey(participant.playerUsername())) {
+                controller.setAction(latestPlayerActions.get(participant.playerUsername()));
+            }
+
+            List<Card> visibleCards = parseCardsString(participant.holeCards());
+            if (visibleCards.size() == 2) {
+                controller.revealCards(visibleCards.get(0), visibleCards.get(1));
+            }
+
+            playersContainer.getChildren().add(seatUI);
+            seatControllerMap.put(participant.playerUsername(), controller);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     // --- HELPER STRIP MAPPING METHODS ---
+
+    private void sendAction(String actionType, int amount) {
+        PokerWebSocketClient client = PokerWebSocketClient.getInstance();
+        if (client != null && client.isOpen()) {
+            client.sendPayload(new OutboundActionPayload(actionType, amount));
+            if ("ADD_BOT".equals(actionType) && gameStatusLabel != null) {
+                gameStatusLabel.setText("Adding bot...");
+            }
+        } else if (actionAPI != null) {
+            if ("FOLD".equals(actionType)) actionAPI.Fold(localUsername);
+            if ("CALL".equals(actionType)) actionAPI.Call(localUsername);
+            if ("RAISE".equals(actionType)) actionAPI.Raise(localUsername, amount);
+        } else if (gameStatusLabel != null) {
+            gameStatusLabel.setText("Not connected to the game server.");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return Map.of();
+    }
+
+    private List<?> asList(Object value) {
+        if (value instanceof List<?> list) {
+            return list;
+        }
+        return List.of();
+    }
+
+    private List<String> asStringList(Object value) {
+        List<String> result = new ArrayList<>();
+        for (Object item : asList(value)) {
+            result.add(asString(item));
+        }
+        return result;
+    }
+
+    private String asString(Object value) {
+        return value == null ? "" : value.toString();
+    }
+
+    private int asInt(Object value, int fallback) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.parseInt(asString(value));
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
 
     private void updateChipsDisplay(int playerChips, int potSize) {
         chipsInfoLabel.setText("Your Chips: $" + playerChips + "  |  Pot: $" + potSize);
+    }
+
+    private String formatActionText(HandActionDTO action) {
+        if (action.amount() > 0) {
+            return action.actionType() + " $" + action.amount();
+        }
+        return action.actionType();
+    }
+
+    private void appendActionFeed(String message) {
+        if (actionFeedList == null || message == null || message.isBlank()) {
+            return;
+        }
+
+        actionFeedList.getItems().add(message);
+        while (actionFeedList.getItems().size() > 8) {
+            actionFeedList.getItems().remove(0);
+        }
+        actionFeedList.scrollTo(actionFeedList.getItems().size() - 1);
+    }
+
+    private int getLocalChipCount() {
+        PlayerSeatController controller = seatControllerMap.get(localUsername);
+        return controller == null ? 0 : controller.getCurrentChips();
+    }
+
+    private String tableLabel(int tableBuyIn, int smallBlind, int bigBlind) {
+        if (tableBuyIn <= 0) {
+            return "Table";
+        }
+        return "Table $" + tableBuyIn + " | Blinds $" + smallBlind + "/$" + bigBlind;
     }
 
     private void enableBettingControls() {

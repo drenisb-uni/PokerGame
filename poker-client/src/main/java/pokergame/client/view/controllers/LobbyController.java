@@ -1,42 +1,113 @@
 package pokergame.client.view.controllers;
 
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import pokergame.GameContext;
 import pokergame.client.network.PokerWebSocketClient;
 import pokergame.client.view.SceneManager;
+import pokergame.domain.dto.PlayerProfileDTO;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 public class LobbyController {
+    private static final int DANIEL_TABLE_BUY_IN = 500;
+    private static final int PHIL_TABLE_BUY_IN = 10000;
+    private static final int LOCAL_TABLE_BUY_IN = 50;
+
+    @FXML private Label bankrollLabel;
+    @FXML private Label joinStatusLabel;
+    @FXML private Button danielTableButton;
+    @FXML private Button philTableButton;
+    @FXML private Button localTableButton;
 
     @FXML
-    public void handleProfile(ActionEvent event) {
-        System.out.println("Opening Profile...");
+    public void initialize() {
+        int bankroll = getBankroll();
+        bankrollLabel.setText("Bankroll: $" + formatMoney(bankroll));
+
+        updateJoinButton(danielTableButton, DANIEL_TABLE_BUY_IN, bankroll);
+        updateJoinButton(philTableButton, PHIL_TABLE_BUY_IN, bankroll);
+        updateJoinButton(localTableButton, LOCAL_TABLE_BUY_IN, bankroll);
     }
 
     @FXML
-    public void handlePlayNow(ActionEvent event) {
-        System.out.println("[Lobby] 'Play Now' clicked. Connecting to server...");
+    public void handlePlayNow() {
+        int bankroll = getBankroll();
+        if (bankroll >= DANIEL_TABLE_BUY_IN) {
+            joinGameTable(DANIEL_TABLE_BUY_IN);
+        } else if (bankroll >= LOCAL_TABLE_BUY_IN) {
+            joinGameTable(LOCAL_TABLE_BUY_IN);
+        } else {
+            showNotEnoughMoney(LOCAL_TABLE_BUY_IN);
+        }
+    }
+
+    @FXML
+    public void handleProfile() {
+        SceneManager.switchScene("PlayerProfile.fxml");
+    }
+
+    @FXML
+    public void handleJoinDanielTable() {
+        joinGameTable(DANIEL_TABLE_BUY_IN);
+    }
+
+    @FXML
+    public void handleJoinPhilTable() {
+        joinGameTable(PHIL_TABLE_BUY_IN);
+    }
+
+    @FXML
+    public void handleJoinLocalTable() {
+        joinGameTable(LOCAL_TABLE_BUY_IN);
+    }
+
+    private void joinGameTable(int buyIn) {
+        int bankroll = getBankroll();
+        if (bankroll < buyIn) {
+            showNotEnoughMoney(buyIn);
+            return;
+        }
+
+        System.out.println("[Lobby] Connecting to game server...");
 
         try {
-            String username = GameContext.getPlayerProfile().username();
-            String serverUri = "ws://localhost:8081?user=" + username;
+            String username = URLEncoder.encode(GameContext.getPlayerProfile().username(), StandardCharsets.UTF_8);
+            String serverUri = "ws://localhost:8081?user=" + username + "&buyIn=" + buyIn;
 
-            boolean isConnected = PokerWebSocketClient.getInstance().connect(serverUri);
+            boolean isConnected = PokerWebSocketClient.connect(serverUri);
             if (isConnected) {
-                System.out.println("[Lobby] ✅ Connected to game server! Loading table UI...");
+                System.out.println("[Lobby] Connected to game server. Loading table UI...");
                 SceneManager.switchScene("GameTable.fxml");
             } else {
-                System.err.println("[Lobby] ❌ Failed to connect to the game server.");
-                // OPTIONAL: Show a JavaFX Alert/Error dialog to the user here
+                joinStatusLabel.setText("Could not connect to the game server.");
+                System.err.println("[Lobby] Failed to connect to the game server.");
             }
-
         } catch (Exception e) {
-            System.err.println("[Lobby] ❌ Error during table join process: " + e.getMessage());
+            joinStatusLabel.setText("Could not join the table.");
+            System.err.println("[Lobby] Error during table join process: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    @FXML
-    public void handleJoinTable(ActionEvent event) {
-        SceneManager.switchScene("GameTable.fxml");
+
+    private void updateJoinButton(Button button, int buyIn, int bankroll) {
+        boolean canAfford = bankroll >= buyIn;
+        button.setDisable(!canAfford);
+        button.setText(canAfford ? "Join Table" : "Need $" + formatMoney(buyIn));
+    }
+
+    private int getBankroll() {
+        PlayerProfileDTO profile = GameContext.getPlayerProfile();
+        return profile == null ? 0 : profile.totalBankroll();
+    }
+
+    private void showNotEnoughMoney(int buyIn) {
+        joinStatusLabel.setText("You need $" + formatMoney(buyIn) + " to join that table.");
+    }
+
+    private String formatMoney(int amount) {
+        return String.format("%,d", amount);
     }
 }

@@ -15,7 +15,8 @@ public class PlayerSeatController {
     @FXML private ImageView holeCard1;
     @FXML private ImageView holeCard2;
 
-    private static final String CARD_BACK = "/images/back.png"; // Make sure you have a card back image!
+    private static final String CARD_BACK = "/images/BACK.png";
+    private int currentChips;
 
     public void setup(HandParticipantDTO seat) {
         usernameLabel.setText(seat.playerUsername());
@@ -25,6 +26,7 @@ public class PlayerSeatController {
     }
 
     public void updateChips(int amount) {
+        currentChips = amount;
         chipsLabel.setText("$" + amount);
     }
 
@@ -62,6 +64,6 @@ public class PlayerSeatController {
     }
 
     public int getCurrentChips() {
-        return 0;
+        return currentChips;
     }
 }

@@ -1,0 +1,310 @@
+@font-face {
+    font-family: 'Galada';
+    src: url('fxml/fonts/Galada/Galada-Regular.ttf'); /* Matches the exact file name */
+}
+
+/* ==========================================================================
+   Base Theme & Typography
+   ========================================================================== */
+.root-pane {
+    -fx-background-color: #265C3B; /* Deep Pine Green */
+}
+
+.title-text {
+    -fx-font-family: "Galada"; /* Keeps the stylized look */
+    -fx-font-size: 46px;
+    -fx-text-fill: #FFFFFF;
+    -fx-padding: 20 0 10 0;
+}
+
+/* ==========================================================================
+   TabPane Styling
+   ========================================================================== */
+.custom-tab-pane {
+    -fx-background-color: transparent;
+}
+
+/* Hide default headers and borders */
+.custom-tab-pane .tab-header-area {
+    -fx-padding: 30 0 0 0;
+}
+.custom-tab-pane .tab-header-background {
+    -fx-background-color: #235737;
+}
+.custom-tab-pane .tab-content-area {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+}
+
+/* Individual Tab Styling */
+.custom-tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-padding: 5 30 10 30;
+    -fx-cursor: hand;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+
+/* Unselected Tab Text */
+.custom-tab-pane .tab-label {
+    -fx-text-fill: #B0C9B9; /* Light faded green */
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+/* Selected Tab Styling (Orange Underline) */
+.custom-tab-pane .tab:selected {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent #F86236 transparent; /* Orange bottom border */
+    -fx-border-width: 0 0 3 0;
+}
+
+/* Selected Tab Text */
+.custom-tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 18px;
+}
+
+/* Focus ring removal */
+.custom-tab-pane .tab:focused {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* ==========================================================================
+   Input Fields
+   ========================================================================== */
+.input-field {
+    -fx-background-color: #4C7D5F; /* Transparent-looking green */
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: #B0C9B9;
+    -fx-background-radius: 20; /* Pill shape */
+    -fx-padding: 12 20 12 20;
+    -fx-font-size: 14px;
+}
+
+.input-field:focused {
+    -fx-background-radius: 10; /* Pill shape */
+    -fx-background-color: #558769;
+}
+
+/* ==========================================================================
+   Labels & Errors
+   ========================================================================== */
+.error-label {
+    -fx-text-fill: #FFD15C; /* Using the yellow from the template to stand out */
+    -fx-font-size: 13px;
+    -fx-font-weight: 400;
+    -fx-padding: -5 0 0 0; /* Pulls it slightly closer to the input field */
+}
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+.primary-button, .secondary-button {
+    -fx-background-color: #F86236; /* Coral/Orange */
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 25; /* Pill shape */
+    -fx-padding: 12 20 12 20;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 10, 0, 0, 4);
+}
+
+.primary-button:hover, .secondary-button:hover {
+    -fx-background-color: #FF774D;
+}
+
+.primary-button:pressed, .secondary-button:pressed {
+    -fx-background-color: #E0532B;
+    -fx-effect: none; /* Flattens the button visually on click */
+}
+
+/* --- Lobby Specific Styles --- */
+
+/* Giant Play Now Button */
+.massive-btn {
+    -fx-font-size: 28px;
+    -fx-padding: 15px 50px;
+    -fx-background-radius: 40px;
+}
+
+/* Subtitle for the tables section */
+.subtitle-text {
+    -fx-text-fill: white;
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+}
+
+/* The Table Card Container */
+.table-card {
+    -fx-background-color: #2b2b2b;
+    -fx-padding: 25px;
+    -fx-background-radius: 12px;
+    -fx-border-color: #2e8b57;
+    -fx-border-radius: 12px;
+    -fx-border-width: 2px;
+    -fx-min-width: 220px;
+    -fx-alignment: center-left; /* Aligns text left, but keeps card format */
+}
+
+/* Card Typography */
+.card-title {
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.card-detail {
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 14px;
+}
+
+.player-box {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+    -fx-padding: 15px;
+    -fx-background-radius: 10px;
+    -fx-border-color: #555555;
+    -fx-border-radius: 10px;
+    -fx-border-width: 2px;
+    -fx-min-width: 120px;
+}
+
+/* ==========================================================================
+   Game Table Action Buttons
+   ========================================================================== */
+
+/* Base style for all game action buttons */
+.action-btn {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 25; /* Pill shape matching your primary buttons */
+    -fx-padding: 12 30 12 30; /* Wider padding for better click targets */
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 10, 0, 0, 4);
+    -fx-min-width: 130px; /* Keeps all three buttons perfectly uniform in size */
+    -fx-alignment: center;
+}
+
+/* Tactile click effect for all action buttons */
+.action-btn:pressed {
+    -fx-effect: none; /* Flattens the drop shadow */
+    -fx-translate-y: 2px; /* Physically moves the button down slightly */
+}
+
+/* --- FOLD: Muted Red --- */
+.fold-btn {
+    -fx-background-color: #A93226;
+}
+.fold-btn:hover {
+    -fx-background-color: #CD6155;
+}
+.fold-btn:pressed {
+    -fx-background-color: #7B241C;
+}
+
+/* --- CALL/CHECK: Solid UI Blue --- */
+.call-btn {
+    -fx-background-color: #2E86C1;
+}
+.call-btn:hover {
+    -fx-background-color: #5DADE2;
+}
+.call-btn:pressed {
+    -fx-background-color: #21618C;
+}
+
+/* --- RAISE: Primary Theme Orange --- */
+.raise-btn {
+    -fx-background-color: #F86236; /* Reusing your theme's highlight color */
+}
+.raise-btn:hover {
+    -fx-background-color: #FF774D;
+}
+.raise-btn:pressed {
+    -fx-background-color: #E0532B;
+}
+
+/* --- DISABLED STATE (Crucial for waiting turns) --- */
+.action-btn:disabled {
+    -fx-background-color: #4C7D5F; /* Blends into your custom green background */
+    -fx-text-fill: #8BB299; /* Dimmed text */
+    -fx-effect: none;
+    -fx-cursor: default;
+    -fx-translate-y: 0;
+}
+
+/* ==========================================================================
+   Raise Popup Action Buttons
+   ========================================================================== */
+
+/* Base style for popup buttons (slightly smaller than main table buttons) */
+.popup-btn {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 20; /* Slightly smaller pill shape */
+    -fx-padding: 8 20 8 20;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 8, 0, 0, 3);
+    -fx-min-width: 90px;
+    -fx-alignment: center;
+}
+
+/* Tactile click effect */
+.popup-btn:pressed {
+    -fx-effect: none;
+    -fx-translate-y: 2px;
+}
+
+/* --- ALL IN: Casino Gold --- */
+.all-in-btn {
+    -fx-background-color: #D4AF37;
+    -fx-text-fill: #1A1A1A; /* Dark text for better contrast against gold */
+}
+.all-in-btn:hover {
+    -fx-background-color: #F1C40F;
+}
+.all-in-btn:pressed {
+    -fx-background-color: #AA8C2C;
+}
+
+/* --- CONFIRM: Theme Primary Orange --- */
+.confirm-btn {
+    -fx-background-color: #F86236;
+}
+.confirm-btn:hover {
+    -fx-background-color: #FF774D;
+}
+.confirm-btn:pressed {
+    -fx-background-color: #E0532B;
+}
+
+/* --- CANCEL: Neutral Gray --- */
+.cancel-btn {
+    -fx-background-color: #666666;
+}
+.cancel-btn:hover {
+    -fx-background-color: #888888;
+}
+.cancel-btn:pressed {
+    -fx-background-color: #444444;
+}
+
+/* --- BONUS: Style the popup container itself --- */
+.popup-box {
+    -fx-background-color: #2b2b2b; /* Matches your table-card color */
+    -fx-padding: 25px;
+    -fx-background-radius: 12px;
+    -fx-border-color: #F86236; /* Orange border to tie it to the theme */
+    -fx-border-radius: 12px;
+    -fx-border-width: 2px;
+}
+
+.popup-title {
+    -fx-text-fill: white;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
