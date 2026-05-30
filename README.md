@@ -275,6 +275,41 @@ Key component:
 
 ---
 
+To safely transition asynchronous network strings into thread-safe game operations, the architecture relies heavily on the **Command Pattern**. This completely decouples the WebSocket network layer from the `PokerGameEngine`.
+
+### Architecture Visualized
+```mermaid
+classDiagram
+    class GameCommandProcessor {
+        -ConcurrentLinkedQueue~PlayerCommand~ commandQueue
+        -PokerGameEngine gameEngine
+        +queueCommand(PlayerCommand cmd)
+        -startProcessingLoop()
+    }
+    
+    class PlayerCommand {
+        <<Interface>>
+        +getPlayerId() String
+        +execute(IPublicActionAPI engine)
+        +fromNetworkMessage(String user, GameMessageDTO dto)$ PlayerCommand
+    }
+    
+    class BetCommand {
+        -String playerId
+        -int amount
+        +execute(IPublicActionAPI engine)
+    }
+    
+    class FoldCommand {
+        -String playerId
+        +execute(IPublicActionAPI engine)
+    }
+
+    GameCommandProcessor o-- PlayerCommand : Polls & Executes
+    PlayerCommand <|.. BetCommand : Implements
+    PlayerCommand <|.. FoldCommand : Implements
+```
+
 ### Engine Layer
 
 The heart of the application.
