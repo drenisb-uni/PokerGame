@@ -405,6 +405,7 @@ sequenceDiagram
 ```
 
 ---
+
 ---
 
 # Core Architectural Decisions
@@ -662,7 +663,8 @@ Thread processorThread
 
 ## Purpose
 
-Evaluates poker hands independently from engine state.
+The backend implementation heavily leverages Computer and Software Engineering fundamentals to ensure fast, deterministic execution, particularly within the `HandRanker` engine.
+  
 
 ## Responsibilities
 
@@ -670,6 +672,10 @@ Evaluates poker hands independently from engine state.
 * tie-breaking
 * ranking logic
 * combinational evaluation
+
+### Time and Space Complexity: Hand Evaluation
+
+The HandRanker evaluates all 7-card combinations (2 hole cards + 5 community cards) to determine the absolute best 5-card hand. Rather than brute-forcing all permutations, the algorithm categorizes cards by suit and rank. Sorting the ranks executes in $O(N \log N)$ time. Tie-breaking between matching hand types (e.g., two flushes) operates in $O(N)$ time by sequentially comparing high-card kickers.
 
 ---
 
