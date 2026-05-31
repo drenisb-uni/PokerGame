@@ -10,7 +10,9 @@ import pokergame.server.dbinfrastructure.HikariDSProvider;
 import pokergame.server.dbinfrastructure.SqlPlayerRepository;
 import pokergame.server.domain.repository.IPlayerRepository;
 import pokergame.server.engine.GameCommandProcessor;
+import pokergame.server.engine.GameEventBroadcaster;
 import pokergame.server.engine.PokerGameEngine;
+import pokergame.server.network.NetworkEventAdapter;
 import pokergame.server.network.PokerWebSocketServer;
 import pokergame.server.service.ServerAuthService;
 import pokergame.server.service.HttpRouteService;
@@ -26,7 +28,6 @@ public class ServerApp {
         PokerGameEngine gameEngine = new PokerGameEngine(playerRepository);
         GameCommandProcessor commandProcessor = new GameCommandProcessor(gameEngine);
         BotManager botManager = new BotManager(commandProcessor, gameEngine);
-        gameEngine.addObserver(botManager);
 
         TokenValidationService tokenValidationService = new TokenValidationService();
         HttpRouteService httpRouteService = new HttpRouteService(authService, tokenValidationService);
@@ -40,11 +41,12 @@ public class ServerApp {
         httpApp.post("/api/auth/login", httpRouteService::handleLogin);
         httpApp.post("/api/auth/register", httpRouteService::handleRegister);
 
-        // Start Dedicated Game WebSocket Server (Port 8081)
-        // If your custom PokerWebSocketServer needs the gameNetworkService callbacks,
-        // you pass it here, otherwise you configure its internal ws pathways to call gameNetworkService.
+        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, tokenValidationService, gameNetworkService);
+        NetworkEventAdapter networkEventAdapter = new NetworkEventAdapter(wsServer);
 
-        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, tokenValidationService);
+        gameEngine.addObserver(botManager);
+        gameEngine.addObserver(networkEventAdapter);
+
         wsServer.start();
 
         System.out.println(">>> Server fully booted. Listening for HTTP on 8080, WebSockets on 8081 <<<");

@@ -18,13 +18,13 @@ public class PokerTableManager {
         System.out.println("[PokerTable] " + username + " sat down. Total players: " + players.size());
 
         // Announce to everyone else that a new player joined
-        broadcast(new GameMessageDTO("PLAYER_JOINED", "SERVER", username + " has joined the table."));
+        broadcast(new GameMessageDTO("PLAYER_JOINED", username + " has joined the table."));
     }
 
     public void removePlayer(String username) {
         if (username != null && players.remove(username) != null) {
             System.out.println("[PokerTable] " + username + " left the table.");
-            broadcast(new GameMessageDTO("PLAYER_LEFT", "SERVER", username + " has left the table."));
+            broadcast(new GameMessageDTO("PLAYER_LEFT", username + " has left the table."));
         }
     }
 

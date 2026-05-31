@@ -110,11 +110,44 @@ public class PokerGameEngine implements IPublicActionAPI {
         broadcaster.broadcastAction(actor, "RAISE", amount, currentState, currentHandId);
         advanceTurn();
     }
-
     @Override
     public void JoinTable(String playerId, int buyIn) {
-        tableManager.sitPlayerDown(playerId, buyIn);
-        broadcaster.broadcastTableSnapshot();
+        boolean seatedSuccessfully = false;
+
+        // ROUTE 1: Is this a bot?
+        if (playerId != null && playerId.startsWith("Bot_")) {
+            // Route directly to the bot seating method we just created
+            seatedSuccessfully = tableManager.sitBot(playerId, buyIn);
+            System.out.println("[Engine] " + playerId + " successfully joined the table.");
+
+        } else {
+            // ROUTE 2: It is a real human.
+            // We must fetch their real profile from the database/memory repository!
+            // (Assuming your Engine has access to a playerRepository or similar service)
+            PlayerProfileDTO actualProfile = playerRepository.findProfileById(playerId);
+
+            if (actualProfile != null) {
+                // Pass the rich DTO to the real player seating method
+                seatedSuccessfully = tableManager.sitRealPlayer(actualProfile, buyIn);
+            } else {
+                System.err.println("[Engine] Failed to join: No database profile found for ID " + playerId);
+                return; // Abort, don't broadcast anything.
+            }
+        }
+
+        // Only broadcast the massive table snapshot if they ACTUALLY sat down
+        // (e.g., skipping the broadcast if the table was full or they were already seated)
+        if (seatedSuccessfully) {
+            System.out.println("[Engine] " + playerId + " successfully joined the table.");
+
+            // Broadcast to everyone that the table composition has changed!
+            broadcaster.broadcastTableSnapshot();
+
+            // OPTIONAL: If this was the second person to join, you might want to auto-start the hand!
+            // if (tableManager.getActivePlayerCount() >= 2 && currentState == GameState.WAITING_FOR_PLAYERS) {
+            //     startNewHand();
+            // }
+        }
     }
 
     @Override
@@ -133,8 +166,7 @@ public class PokerGameEngine implements IPublicActionAPI {
 
     @Override
     public void AddBot() {
-        String botName = botManager.nextManualBotName();
-        sitPlayerDown(botName, this.getTableBuyIn(), -1);
+        botManager.spawnAndSeatBot(tableBuyIn);
         broadcaster.broadcastTableSnapshot();
     }
 
@@ -527,5 +559,9 @@ public class PokerGameEngine implements IPublicActionAPI {
 
     public BettingPot getBettingPot() {
         return bettingPot;
+    }
+
+    public GameEventBroadcaster getBroadcaster() {
+        return broadcaster;
     }
 }

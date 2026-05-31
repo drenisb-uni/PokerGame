@@ -10,6 +10,7 @@ import org.java_websocket.server.WebSocketServer;
 import pokergame.domain.dto.GameMessageDTO;
 import pokergame.engine.commands.*;
 import pokergame.server.engine.GameCommandProcessor;
+import pokergame.server.service.GameNetworkService;
 import pokergame.server.service.TokenValidationService;
 
 import java.net.InetSocketAddress;
@@ -20,14 +21,16 @@ public class PokerWebSocketServer extends WebSocketServer {
 
     private final SessionManager sessionManager;
     private final GameCommandProcessor commandProcessor;
-    private final ObjectMapper objectMapper;
     private final TokenValidationService tokenService;
+    private final GameNetworkService gameNetworkService;
+    private final ObjectMapper objectMapper;
 
-    public PokerWebSocketServer(int port, GameCommandProcessor processor, TokenValidationService tokenService) {
+    public PokerWebSocketServer(int port, GameCommandProcessor processor, TokenValidationService tokenService, GameNetworkService gameNetworkService) {
         super(new InetSocketAddress(port));
         this.sessionManager = new SessionManager();
         this.commandProcessor = processor;
         this.tokenService = tokenService;
+        this.gameNetworkService = gameNetworkService;
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
@@ -85,6 +88,13 @@ public class PokerWebSocketServer extends WebSocketServer {
                     }
                     yield new RaiseCommand(playerId, amtNode.asInt());
                 }
+                case "JOIN_TABLE" -> {
+                    JsonNode amtNode = rootNode.get("amount");
+                    if (amtNode == null || !amtNode.isInt() || amtNode.asInt() <= 0) {
+                        throw new IllegalArgumentException("Buy in amount must be a positive integer");
+                    }
+                    yield new JoinTableCommand(playerId,  amtNode.asInt());
+                }
                 case "ADD_BOT" -> new AddBotCommand(playerId);
                 case "LEAVE_TABLE" -> new LeaveTableCommand(playerId);
                 case "REFRESH_TABLE" -> new RefreshSnapshotCommand(playerId);
@@ -105,7 +115,7 @@ public class PokerWebSocketServer extends WebSocketServer {
 
     private void sendErrorToSocket(WebSocket conn, String errorMsg) {
         try {
-            String json = objectMapper.writeValueAsString(new GameMessageDTO("ERROR", "server", errorMsg));
+            String json = objectMapper.writeValueAsString(new GameMessageDTO("ERROR", errorMsg));
             conn.send(json);
         } catch (Exception e) {
             e.printStackTrace();
@@ -122,6 +132,48 @@ public class PokerWebSocketServer extends WebSocketServer {
         System.out.println("Poker WebSocket Server successfully bound and running on port: " + getPort());
     }
 
+    /**
+     * Broadcasts a properly serialized JSON message to ALL connected clients.
+     * Use this for global table snapshots and community card reveals.
+     */
+    public void broadcastMessage(GameMessageDTO message) {
+        try {
+            // THIS is where the magic happens. Converts the DTO/Map into perfect JSON.
+            String jsonString = objectMapper.writeValueAsString(message);
+
+            // Java-WebSocket provides getConnections() natively to broadcast to everyone
+            for (WebSocket conn : getConnections()) {
+                if (conn != null && conn.isOpen()) {
+                    conn.send(jsonString);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[WebSocket] FATAL: Broadcast serialization failed: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Sends a properly serialized JSON message to a SPECIFIC player.
+     * Use this for private messages like hole cards or error notifications.
+     */
+    public void sendMessageToPlayer(String playerId, GameMessageDTO message) {
+        try {
+            ClientConnection client = sessionManager.getConnectionByPlayerId(playerId);
+            if (client != null && client.getSocket().isOpen()) {
+
+                // Serialize specifically for this player
+                String jsonString = objectMapper.writeValueAsString(message);
+                client.getSocket().send(jsonString);
+
+            } else {
+                System.out.println("[WebSocket] Dropped message for " + playerId + " (Not connected)");
+            }
+        } catch (Exception e) {
+            System.err.println("[WebSocket] FATAL: Targeted message serialization failed for " + playerId + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Extracts a specific string query parameter from a URI / resource descriptor.

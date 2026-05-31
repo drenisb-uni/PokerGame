@@ -91,32 +91,57 @@ public class TableManager {
     }
 
     /**
-     * Assigns a player (or bot) to the first available open seat.
-     * Generates a basic profile for them. (For authenticated players,
-     * this logic can be expanded to accept their real PlayerProfileDTO).
+     * Seats a REAL, authenticated player using their actual database profile.
+     * Preserves their UUID and real bankroll stats.
      */
-    public void sitPlayerDown(String username, int tableBuyIn) {
-        // Prevent duplicate seating
-        if (findByUsername(username).isPresent()) {
-            return;
+    public boolean sitRealPlayer(PlayerProfileDTO actualProfile, int tableBuyIn) {
+        // Prevent duplicate seating (checking against their UUID)
+        if (findByUsername(actualProfile.id()).isPresent()) {
+            System.err.println("[TableManager] Player " + actualProfile.username() + " is already at the table.");
+            return false;
         }
 
+        TableSeat newSeat = new TableSeat(actualProfile, tableBuyIn);
+        return performSeating(newSeat, actualProfile.username());
+    }
+
+    /**
+     * Seats an AI Bot, generating a temporary dummy profile for them on the fly.
+     */
+    public boolean sitBot(String botName, int tableBuyIn) {
+        // Prevent duplicate seating (checking against the Bot's string name)
+        if (findByUsername(botName).isPresent()) {
+            return false;
+        }
+
+        // Create a standard dummy profile for the bot.
+        // We use the botName for both the ID and the Username fields.
+        PlayerProfileDTO botProfile = new PlayerProfileDTO(
+                botName, botName, null, null, tableBuyIn, null
+        );
+
+        TableSeat botSeat = new TableSeat(botProfile, tableBuyIn);
+        return performSeating(botSeat, botName);
+    }
+
+    /**
+     * PRIVATE HELPER: Core seating logic shared by both humans and bots.
+     * Finds the seat index and adds them to the physical table array.
+     */
+    private boolean performSeating(TableSeat newSeat, String displayName) {
         int openSeatIndex = findFirstOpenSeatIndex();
 
         // No seats available
         if (openSeatIndex == -1) {
-            System.err.println("[TableManager] Cannot seat " + username + " - Table is full.");
-            return;
+            System.err.println("[TableManager] Cannot seat " + displayName + " - Table is full.");
+            return false;
         }
 
-        // Create a standard dummy profile for unauthenticated bots or users
-        PlayerProfileDTO profile = new PlayerProfileDTO(username, username, null, null, tableBuyIn, null);
-
-        TableSeat newSeat = new TableSeat(profile, tableBuyIn);
         newSeat.setSeatIndex(openSeatIndex);
         addSeat(newSeat);
 
-        System.out.println("[TableManager] Seated " + username + " at index " + openSeatIndex);
+        System.out.println("[TableManager] Seated " + displayName + " at index " + openSeatIndex);
+        return true;
     }
 
     /**

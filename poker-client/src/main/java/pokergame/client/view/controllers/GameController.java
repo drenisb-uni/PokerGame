@@ -425,8 +425,8 @@ public class GameController implements IGameEventListener {
     }
 
     private void handlePlayerFold(GameMessageDTO event) {
-        String foldingPlayer = event.sender();
-        System.out.println("[Table UI] Grey out avatar for: " + foldingPlayer);
+        //String foldingPlayer = event.sender();
+        System.out.println("[Table UI] Grey out avatar for: ");
         // TODO: Update UI
     }
 

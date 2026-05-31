@@ -61,6 +61,14 @@ public class BotManager implements IGameEventListener {
         return username;
     }
 
+    public void spawnAndSeatBot(int tableBuyIn) {
+        String botName = nextManualBotName();
+
+        System.out.println("[BotManager] Spawning new bot: " + botName);
+
+        gameEngine.JoinTable(botName, tableBuyIn);
+    }
+
     @Override
     public void onPlayerTurn(String username, int amountToCall) {
         if (!botUsernames.contains(username)) return;
@@ -392,7 +400,6 @@ public class BotManager implements IGameEventListener {
 
     @Override public void onGameStateChanged(GameState state) {}
     @Override public void onCommunityCardsDealt(List<Card> cards) {}
-    @Override public void onNewSeatOccupied(HandParticipantDTO participant) {}
     @Override
     public void onPlayerAction(HandActionDTO action) {
         if (botUsernames.contains(action.playerId())) {
@@ -406,8 +413,33 @@ public class BotManager implements IGameEventListener {
     @Override public void onHandResult(List<String> winnerUsernames, HandResult winnerHand, int potSize) {}
 
     @Override
-    public void onTableSnapshotBroadcast(Map<String, Object> snapshotPayload) {
+    public void onNewSeatOccupied(HandParticipantDTO participant) {
+        String username = participant.playerUsername();
+        // Automatically adopt any player whose name starts with "Bot_"
+        if (username != null && username.startsWith("Bot_")) {
+            if (!isBot(username)) {
+                System.out.println("[BotManager] Adopting newly seated bot: " + username);
+                registerBot(username);
+            }
+        }
+    }
 
+    @Override
+    public void onTableSnapshotBroadcast(Map<String, Object> snapshotPayload) {
+        // The server passes the literal Java objects in the list, not JSON maps!
+        List<?> seats = (List<?>) snapshotPayload.get("seats");
+        if (seats != null) {
+            for (Object seatObj : seats) {
+                // CORRECT CAST: It is natively a HandParticipantDTO on the server side
+                if (seatObj instanceof HandParticipantDTO participant) {
+                    String username = participant.playerUsername();
+
+                    if (username != null && username.startsWith("Bot_")) {
+                        registerBot(username);
+                    }
+                }
+            }
+        }
     }
 
     @Override

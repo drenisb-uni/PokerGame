@@ -2,6 +2,8 @@ package pokergame.server.network;
 
 import org.java_websocket.WebSocket;
 
+import java.nio.channels.DatagramChannel;
+
 public class ClientConnection {
     private final String playerId;
     private final WebSocket session;
@@ -28,5 +30,9 @@ public class ClientConnection {
         if (session != null) {
             session.close();
         }
+    }
+
+    public WebSocket getSocket() {
+        return session;
     }
 }
