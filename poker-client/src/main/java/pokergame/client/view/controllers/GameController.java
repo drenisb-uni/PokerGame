@@ -75,7 +75,7 @@ public class GameController implements IGameEventListener {
     private boolean applyingDeferredTableSetup = false;
     private PauseTransition winnerDisplayHold;
     private String lastAnimatedActionPlayer = null;
-    private GameMessageDTO deferredTableSnapshot;
+    private Map<String, Object> deferredTableSnapshot;
     private GameMessageDTO deferredHandResultMessage;
     private List<String> activeWinnerUsernames = List.of();
     private List<String> deferredWinnerUsernames;
@@ -363,12 +363,15 @@ public class GameController implements IGameEventListener {
 
     @Override
     public void onTableSnapshotBroadcast(Map<String, Object> snapshotPayload) {
-
+        Platform.runLater(() -> handleTableSnapshot(snapshotPayload));
     }
 
     @Override
     public void onTargetedTableSnapshot(String playerId, Map<String, Object> snapshotPayload) {
-
+        String myId = GameContext.getPlayerProfile().id();
+        if (myId != null && myId.equals(playerId)) {
+            Platform.runLater(() -> handleTableSnapshot(snapshotPayload));
+        }
     }
 
     @Override
@@ -431,14 +434,25 @@ public class GameController implements IGameEventListener {
         // TODO: Append event.payload() to the chat box UI
     }
 
-    private void handleTableSnapshot(GameMessageDTO event) {
+    private void handleTableSnapshot(Map<String, Object> payload) {
         Platform.runLater(() -> {
-            Map<String, Object> payload = asMap(event.payload());
+            System.out.println("--- [UI DEBUG] applyTableSnapshot triggered! ---");
+
+            if (payload == null) {
+                System.err.println("[UI DEBUG] Payload is NULL! Aborting.");
+                return;
+            }
+
             String gameState = asString(payload.get("gameState"));
 
             if (!applyingDeferredTableSetup && isVisualSequenceActive()
                     && !(winnerAnimationRunning && "HAND_OVER".equals(gameState))) {
-                deferredTableSnapshot = event;
+
+                System.out.println("[UI DEBUG] SNAPSHOT BLOCKED! Deferring because animations are active!");
+                System.out.println("actionAnimationRunning: " + actionAnimationRunning);
+                System.out.println("pendingActionAnimations count: " + pendingActionAnimations.size());
+
+                deferredTableSnapshot = payload;
                 if (!actionAnimationRunning && !pendingActionAnimations.isEmpty()) {
                     playNextQueuedPlayerAction();
                 }
@@ -446,7 +460,7 @@ public class GameController implements IGameEventListener {
             }
 
             List<?> seats = asList(payload.get("seats"));
-            int maxSeats = asInt(payload.get("maxSeats"), 6);
+            System.out.println("[UI DEBUG] Attempting to render " + (seats != null ? seats.size() : 0) + " seats.");            int maxSeats = asInt(payload.get("maxSeats"), 6);
             this.maxSeatsAtTable = maxSeats;
             int potSize = asInt(payload.get("potSize"), this.localPotSize);
             int tableBuyIn = asInt(payload.get("tableBuyIn"), 0);
@@ -457,20 +471,29 @@ public class GameController implements IGameEventListener {
             seatControllerMap.clear();
             this.localPotSize = potSize;
 
-            for (Object seatPayload : seats) {
-                Map<String, Object> seatMap = asMap(seatPayload);
-                HandParticipantDTO participant = new HandParticipantDTO(
-                        asString(seatMap.get("handId")),
-                        asString(seatMap.get("playerUsername")),
-                        asInt(seatMap.get("seatIndex"), 0),
-                        asString(seatMap.get("holeCards")),
-                        asInt(seatMap.get("startChips"), 0),
-                        asInt(seatMap.get("endChips"), 0),
-                        asInt(seatMap.get("netProfit"), 0),
-                        Boolean.TRUE.equals(seatMap.get("winner")) || Boolean.TRUE.equals(seatMap.get("isWinner"))
-                );
-                renderSeat(participant);
+            try {
+                if (seats != null) {
+                    for (Object seatPayload : seats) {
+                        Map<String, Object> seatMap = asMap(seatPayload);
+                        HandParticipantDTO participant = new HandParticipantDTO(
+                                asString(seatMap.get("handId")),
+                                asString(seatMap.get("playerUsername")),
+                                asInt(seatMap.get("seatIndex"), 0),
+                                asString(seatMap.get("holeCards")),
+                                asInt(seatMap.get("startChips"), 0),
+                                asInt(seatMap.get("endChips"), 0),
+                                asInt(seatMap.get("netProfit"), 0),
+                                Boolean.TRUE.equals(seatMap.get("winner")) || Boolean.TRUE.equals(seatMap.get("isWinner"))
+                        );
+                        renderSeat(participant);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[UI FATAL] Crash while rendering seats!");
+                e.printStackTrace();
             }
+
+
 
             if (addBotButton != null) {
                 boolean handInProgress = !gameState.isBlank()
@@ -495,6 +518,11 @@ public class GameController implements IGameEventListener {
                 restoreWinnerDisplayAfterTableRefresh();
             }
         });
+    }
+
+    private void handleTableSnapshot(GameMessageDTO event) {
+        Map<String, Object> payload = asMap(event.payload());
+        handleTableSnapshot(payload);
     }
 
     private void handleGameStateMessage(GameMessageDTO event) {
@@ -558,17 +586,29 @@ public class GameController implements IGameEventListener {
             localPotSize = 0;
         });
     }
-
     private void renderSeat(HandParticipantDTO participant) {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PlayerSeat.fxml"));
             VBox seatUI = loader.load();
-
             PlayerSeatController controller = loader.getController();
-            controller.setup(participant);
-            boolean hasLatestAction = latestPlayerActions.containsKey(participant.playerUsername());
+
+            // --- IDENTITY FIX: Swap UUID for Display Name ---
+            String technicalId = participant.playerUsername(); // e.g., "e8ea8157..." or "Bot_1"
+            String displayName = technicalId;
+
+            // If this seat belongs to the logged-in player, show their real username ("qqq")
+            if (GameContext.getPlayerProfile() != null && technicalId.equals(GameContext.getPlayerProfile().id())) {
+                displayName = GameContext.getPlayerProfile().username();
+            }
+
+            // Pass the resolved display name to the controller
+            // (You may need to update setup() to accept this string if it only took the DTO before)
+            controller.setup(participant, displayName);
+
+            // --- ANIMATION & ACTION RESTORATION ---
+            boolean hasLatestAction = latestPlayerActions.containsKey(technicalId);
             if (hasLatestAction) {
-                controller.restoreActionVisual(latestPlayerActions.get(participant.playerUsername()));
+                controller.restoreActionVisual(latestPlayerActions.get(technicalId));
             }
 
             List<Card> visibleCards = parseCardsString(participant.holeCards());
@@ -576,12 +616,17 @@ public class GameController implements IGameEventListener {
                 controller.revealCards(visibleCards.get(0), visibleCards.get(1));
             }
 
+            // --- MOUNT TO UI ---
             playersContainer.getChildren().add(seatUI);
-            seatControllerMap.put(participant.playerUsername(), controller);
+
+            // CRITICAL: Always use the technicalId (UUID/Bot_X) for maps so future actions match!
+            seatControllerMap.put(technicalId, controller);
+
             if (!hasLatestAction) {
                 controller.playSeatEntryAnimation();
             }
         } catch (IOException e) {
+            System.err.println("Failed to render player seat: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -869,7 +914,7 @@ public class GameController implements IGameEventListener {
             }
 
             if (deferredTableSnapshot != null) {
-                GameMessageDTO snapshot = deferredTableSnapshot;
+                Map<String, Object> snapshot = deferredTableSnapshot;
                 deferredTableSnapshot = null;
                 handleTableSnapshot(snapshot);
             }
