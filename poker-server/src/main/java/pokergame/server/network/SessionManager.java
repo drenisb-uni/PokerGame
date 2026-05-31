@@ -29,6 +29,11 @@ public class SessionManager {
         return activeConnections.get(socket);
     }
 
+
+    public ClientConnection getConnectionByPlayerId(String playerId) {
+        return playerConnections.get(playerId);
+    }
+
     public java.util.List<String> getConnectedPlayerIds() {
         return java.util.List.copyOf(playerConnections.keySet());
     }

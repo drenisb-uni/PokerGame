@@ -15,7 +15,7 @@ public class LobbyController {
     private static final int DANIEL_TABLE_BUY_IN = 500;
     private static final int PHIL_TABLE_BUY_IN = 10000;
     private static final int LOCAL_TABLE_BUY_IN = 50;
-
+    String token = GameContext.getJwtToken();
     @FXML private Label bankrollLabel;
     @FXML private Label joinStatusLabel;
     @FXML private Button danielTableButton;
@@ -73,9 +73,14 @@ public class LobbyController {
 
         System.out.println("[Lobby] Connecting to game server...");
 
+        if (token == null || token.isBlank()) {
+            System.err.println("FATAL: Trying to connect with a null token!");
+            return;
+        }
+
         try {
-            String username = URLEncoder.encode(GameContext.getPlayerProfile().username(), StandardCharsets.UTF_8);
-            String serverUri = "ws://localhost:8081?user=" + username + "&buyIn=" + buyIn;
+            String encodedToken = URLEncoder.encode(token, java.nio.charset.StandardCharsets.UTF_8);
+            String serverUri = "ws://localhost:8081/?token=" + encodedToken + "&buyIn=1000";
 
             boolean isConnected = PokerWebSocketClient.connect(serverUri);
             if (isConnected) {

@@ -6,6 +6,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+
+import pokergame.GameContext;
 import pokergame.domain.dto.LoginRequestDTO;
 import pokergame.domain.dto.RegisterRequestDTO; // Create this record in poker-common
 import pokergame.domain.dto.PlayerProfileDTO;
@@ -40,7 +42,18 @@ public class AuthNetworkClient {
             System.out.println("Server Response Body: " + response.body());
 
             if (response.statusCode() == 200) {
-                // Read the profile JSON sent back by the Javalin server
+                // 1. EXTRACTION: Grab the Authorization header sent by Javalin
+                response.headers().firstValue("Authorization").ifPresent(authHeader -> {
+                    if (authHeader.startsWith("Bearer ")) {
+                        String token = authHeader.substring(7); // Strip off "Bearer "
+
+                        // 2. STORAGE: Save it to your global game state!
+                        GameContext.setJwtToken(token);
+                        System.out.println("[Auth Client] Successfully intercepted and saved JWT Token!");
+                    }
+                });
+
+                // 3. PARSING: Read the profile JSON sent back by the Javalin server
                 return objectMapper.readValue(response.body(), PlayerProfileDTO.class);
             }
         } catch (Exception e) {
