@@ -56,6 +56,7 @@ public class PokerGameEngine implements IPublicActionAPI {
             seat.clearCards();
         });
 
+        deck.reset();
         deck.shuffleDeck();
         // Deal cards
         for (int i = 0; i < 2; i++) {
@@ -362,6 +363,10 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     public synchronized void startHandIfReady() {
+        if (currentState == GameState.HAND_OVER && nextHandScheduled) {
+            return;
+        }
+
         if (tableManager.size() >= 2 && isBetweenHands()) {
             startNewHand();
         }
@@ -434,15 +439,25 @@ public class PokerGameEngine implements IPublicActionAPI {
         nextHandScheduled = true;
         Thread nextHandThread = new Thread(() -> {
             try {
-                Thread.sleep(9000);
+                Thread.sleep(8000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             }
-            startHandIfReady();
+            startScheduledHandIfReady();
         }, "Next-Hand-Starter");
         nextHandThread.setDaemon(true);
         nextHandThread.start();
+    }
+
+    private synchronized void startScheduledHandIfReady() {
+        if (tableManager.size() >= 2 && currentState == GameState.HAND_OVER) {
+            startNewHand();
+            return;
+        }
+
+        nextHandScheduled = false;
+        startHandIfReady();
     }
 
     private PlayerProfileDTO loadSeatProfile(String username, int buyIn) {
