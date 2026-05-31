@@ -40,6 +40,7 @@ public class ServerApp {
         httpApp.post("/api/auth/register", httpRouteService::handleRegister);
 
         PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, tokenValidationService, gameNetworkService, lobbyManager);
+        lobbyManager.setWebSocketServer(wsServer);
         NetworkEventAdapter networkEventAdapter = new NetworkEventAdapter(wsServer);
 
         gameEngine.addObserver(botManager);

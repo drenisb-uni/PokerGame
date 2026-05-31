@@ -34,4 +34,7 @@ public class GameContext {
         }
         return pokerGameEngine;
     }
+
+    // NEW: Getter and Setter
+
 }

@@ -58,6 +58,11 @@ public class WebSocketClientAPI implements IPublicActionAPI {
         sendAction("REFRESH_SNAPSHOT", 0);
     }
 
+    @Override
+    public void StartHand() {
+        sendAction("START_HAND", 0);
+    }
+
     /**
      * Centralized serializer that converts the actions into a standard JSON text string
      * and transmits them asynchronously over the WebSocket wire.

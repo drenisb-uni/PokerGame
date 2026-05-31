@@ -101,14 +101,39 @@ public class GameEventBroadcaster {
         payload.put("smallBlind", pot.getSmallBlindAmount());
         payload.put("bigBlind", pot.getBigBlindAmount());
 
-        // 3. Map all physical seats into safe DTOs
-        List<HandParticipantDTO> seatDTOs = gameEngine.getTableManager().getSeats().stream()
-                .map(seat -> mapSeatToSafeDTO(seat, viewerUsername, revealAllCards))
-                .collect(Collectors.toList());
+        // 3. FIXED: Map physical seats to safe DTOs using strict layout indexing
+        List<HandParticipantDTO> seatDTOs = new ArrayList<>();
+        List<TableSeat> physicalSeats = gameEngine.getTableManager().getSeats();
+
+        for (int i = 0; i < physicalSeats.size(); i++) {
+            TableSeat seat = physicalSeats.get(i);
+
+            if (seat == null) {
+                // Create a DTO specifically flagged as an empty chair at this exact index
+                seatDTOs.add(createEmptySeatDTO(i));
+            } else {
+                // Map the active player
+                HandParticipantDTO activeDTO = mapSeatToSafeDTO(seat, viewerUsername, revealAllCards);
+                seatDTOs.add(activeDTO);
+            }
+        }
 
         payload.put("seats", seatDTOs);
 
         return payload;
+    }
+
+    private HandParticipantDTO createEmptySeatDTO(int index) {
+        return new HandParticipantDTO(
+                null,
+                null,
+                index,
+                null,
+                0,
+                0,
+                0,
+                false
+        );
     }
 
     /**

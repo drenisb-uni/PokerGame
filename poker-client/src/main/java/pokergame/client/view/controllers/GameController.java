@@ -33,6 +33,7 @@ import pokergame.domain.rules.HandResult;
 import pokergame.engine.GameState;
 import pokergame.engine.IGameEventListener;
 import pokergame.engine.IPublicActionAPI; // Decoupled interface contract
+import pokergame.engine.commands.FoldCommand;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -98,20 +99,29 @@ public class GameController implements IGameEventListener {
     public void initialize() {
         communityCards = new ImageView[]{ commCard1, commCard2, commCard3, commCard4, commCard5 };
         raisePopupOverlay.setVisible(false);
-        disableBettingControls(); // Stay safe until the server prompts us for our turn
+        disableBettingControls();
 
+        // --- FIX THE SUBSCRIPTION STRINGS HERE ---
         EventBus.subscribe("DEAL_CARDS", this::handleDealCards);
         EventBus.subscribe("PLAYER_FOLDED", this::handlePlayerFold);
         EventBus.subscribe("CHAT_MESSAGE", this::handleChat);
         EventBus.subscribe("TABLE_SNAPSHOT", this::handleTableSnapshot);
-        EventBus.subscribe("GAME_STATE", this::handleGameStateMessage);
-        EventBus.subscribe("TURN_PROMPT", this::handleTurnPrompt);
+
+        // 1. FIX: Server sends "GAME_STATE_CHANGED", not "GAME_STATE"
+        EventBus.subscribe("GAME_STATE_CHANGED", this::handleGameStateMessage);
+
+        // 2. FIX: Server sends "PLAYER_TURN", not "TURN_PROMPT"
+        EventBus.subscribe("PLAYER_TURN", this::handleTurnPrompt);
+
         EventBus.subscribe("COMMUNITY_CARDS", this::handleCommunityCardsMessage);
         EventBus.subscribe("PLAYER_ACTION", this::handlePlayerActionMessage);
         EventBus.subscribe("HAND_RESULT", this::handleHandResultMessage);
 
         if (GameContext.getPlayerProfile() != null) {
             localUsername = GameContext.getPlayerProfile().username();
+        }
+        if (GameContext.getCurrentTableId() != null) {
+            inviteCodeLabel.setText(GameContext.getCurrentTableId());
         }
 
         Platform.runLater(() -> sendAction("REFRESH_TABLE", 0));
@@ -439,105 +449,180 @@ public class GameController implements IGameEventListener {
         Platform.runLater(() -> {
             System.out.println("--- [UI DEBUG] applyTableSnapshot triggered! ---");
 
-            if (payload == null) {
-                System.err.println("[UI DEBUG] Payload is NULL! Aborting.");
+            if (!isValidSnapshotPayload(payload)) {
                 return;
             }
 
             String gameState = asString(payload.get("gameState"));
 
-            if (!applyingDeferredTableSetup && isVisualSequenceActive()
-                    && !(winnerAnimationRunning && "HAND_OVER".equals(gameState))) {
-
-                System.out.println("[UI DEBUG] SNAPSHOT BLOCKED! Deferring because animations are active!");
-                System.out.println("actionAnimationRunning: " + actionAnimationRunning);
-                System.out.println("pendingActionAnimations count: " + pendingActionAnimations.size());
-
-                deferredTableSnapshot = payload;
-                if (!actionAnimationRunning && !pendingActionAnimations.isEmpty()) {
-                    playNextQueuedPlayerAction();
-                }
+            if (shouldDeferForAnimations(gameState)) {
+                deferSnapshot(payload);
                 return;
             }
 
+            // 1. Update internal state
+            updateTableProperties(payload);
+
+            // 2. Render the actual table seats
             List<?> seats = asList(payload.get("seats"));
-            System.out.println("[UI DEBUG] Attempting to render " + (seats != null ? seats.size() : 0) + " seats.");            int maxSeats = asInt(payload.get("maxSeats"), 6);
-            this.maxSeatsAtTable = maxSeats;
-            int potSize = asInt(payload.get("potSize"), this.localPotSize);
-            int tableBuyIn = asInt(payload.get("tableBuyIn"), 0);
-            int smallBlind = asInt(payload.get("smallBlind"), 0);
-            int bigBlind = asInt(payload.get("bigBlind"), 0);
+            int activePlayerCount = renderActiveSeats(seats);
 
-            playersContainer.getChildren().clear();
-            seatControllerMap.clear();
-            this.localPotSize = potSize;
-
-            try {
-                if (seats != null) {
-                    for (Object seatPayload : seats) {
-                        Map<String, Object> seatMap = asMap(seatPayload);
-                        HandParticipantDTO participant = new HandParticipantDTO(
-                                asString(seatMap.get("handId")),
-                                asString(seatMap.get("playerUsername")),
-                                asInt(seatMap.get("seatIndex"), 0),
-                                asString(seatMap.get("holeCards")),
-                                asInt(seatMap.get("startChips"), 0),
-                                asInt(seatMap.get("endChips"), 0),
-                                asInt(seatMap.get("netProfit"), 0),
-                                Boolean.TRUE.equals(seatMap.get("winner")) || Boolean.TRUE.equals(seatMap.get("isWinner"))
-                        );
-                        renderSeat(participant);
-                    }
-                }
-            } catch (Exception e) {
-                System.err.println("[UI FATAL] Crash while rendering seats!");
-                e.printStackTrace();
-            }
-
-
-
-            if (addBotButton != null) {
-                boolean handInProgress = !gameState.isBlank()
-                        && !"WAITING_FOR_PLAYERS".equals(gameState)
-                        && !"HAND_OVER".equals(gameState);
-                addBotButton.setDisable(seats.size() >= maxSeats || handInProgress);
-            }
-
-            if (gameStatusLabel != null) {
-                if (seats.size() < 2) {
-                    gameStatusLabel.setText(tableLabel(tableBuyIn, smallBlind, bigBlind) + " | Waiting for players...");
-                } else if ("HAND_OVER".equals(gameState)) {
-                    gameStatusLabel.setText("Round over - add bots now");
-                } else if (!gameState.isBlank()) {
-                    gameStatusLabel.setText(tableLabel(tableBuyIn, smallBlind, bigBlind));
-                }
-            }
-
-            if (!"HAND_OVER".equals(gameState)) {
-                chipsInfoLabel.setText("Your Chips: $" + getLocalChipCount() + "  |  Pot: $" + this.localPotSize);
-            } else if (winnerAnimationRunning) {
-                restoreWinnerDisplayAfterTableRefresh();
-            }
+            // 3. Update the UI labels and buttons based on current state
+            updateTableUIControls(activePlayerCount, gameState, payload);
         });
     }
+
+// =======================================================================
+// Refactored Helper Methods
+// =======================================================================
+
+    private boolean isValidSnapshotPayload(Map<String, Object> payload) {
+        if (payload == null) {
+            System.err.println("[UI DEBUG] Payload is NULL! Aborting.");
+            return false;
+        }
+
+        // 1. Check if the key is missing entirely or is explicitly null
+        if (!payload.containsKey("seats") || payload.get("seats") == null) {
+            System.out.println("[UI DEBUG] Ignored payload: Missing 'seats' key.");
+            return false;
+        }
+
+        // 2. THE MISSING GUARD: Check if the array is empty!
+        // A genuine snapshot will ALWAYS have your max seat count (e.g., 6).
+        // If it's 0, this is an Action DTO masquerading as a Snapshot.
+        List<?> seats = asList(payload.get("seats"));
+        if (seats == null || seats.isEmpty()) {
+            System.out.println("[UI DEBUG] SNAPSHOT BLOCKED! Payload contains an empty seats array (Action update, not a snapshot).");
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean shouldDeferForAnimations(String gameState) {
+        return !applyingDeferredTableSetup && isVisualSequenceActive()
+                && !(winnerAnimationRunning && "HAND_OVER".equals(gameState));
+    }
+
+    private void deferSnapshot(Map<String, Object> payload) {
+        System.out.println("[UI DEBUG] SNAPSHOT BLOCKED! Deferring because animations are active!");
+        System.out.println("actionAnimationRunning: " + actionAnimationRunning);
+        System.out.println("pendingActionAnimations count: " + pendingActionAnimations.size());
+
+        deferredTableSnapshot = payload;
+        if (!actionAnimationRunning && !pendingActionAnimations.isEmpty()) {
+            playNextQueuedPlayerAction();
+        }
+    }
+
+    private void updateTableProperties(Map<String, Object> payload) {
+        this.maxSeatsAtTable = asInt(payload.get("maxSeats"), 6);
+        this.localPotSize = asInt(payload.get("potSize"), this.localPotSize);
+    }
+
+    private int renderActiveSeats(List<?> seats) {
+        playersContainer.getChildren().clear();
+        seatControllerMap.clear();
+
+        if (seats == null) {
+            return 0;
+        }
+
+        int activePlayerCount = 0;
+
+        try {
+            for (Object seatPayload : seats) {
+                Map<String, Object> seatMap = asMap(seatPayload);
+                String username = asString(seatMap.get("playerUsername"));
+
+                // Skip empty chairs entirely
+                if (username == null || username.trim().isEmpty() || "null".equals(username)) {
+                    continue;
+                }
+
+                activePlayerCount++;
+                renderSeat(createParticipantDTO(seatMap, username));
+            }
+            System.out.println("[UI DEBUG] Successfully rendered " + activePlayerCount + " active seats.");
+        } catch (Exception e) {
+            System.err.println("[UI FATAL] Crash while rendering seats!");
+            e.printStackTrace();
+        }
+
+        return activePlayerCount;
+    }
+
+    private HandParticipantDTO createParticipantDTO(Map<String, Object> seatMap, String username) {
+        return new HandParticipantDTO(
+                asString(seatMap.get("handId")),
+                username,
+                asInt(seatMap.get("seatIndex"), 0),
+                asString(seatMap.get("holeCards")),
+                asInt(seatMap.get("startChips"), 0),
+                asInt(seatMap.get("endChips"), 0),
+                asInt(seatMap.get("netProfit"), 0),
+                Boolean.TRUE.equals(seatMap.get("winner")) || Boolean.TRUE.equals(seatMap.get("isWinner"))
+        );
+    }
+
+    private void updateTableUIControls(int activePlayerCount, String gameState, Map<String, Object> payload) {
+        int tableBuyIn = asInt(payload.get("tableBuyIn"), 0);
+        int smallBlind = asInt(payload.get("smallBlind"), 0);
+        int bigBlind = asInt(payload.get("bigBlind"), 0);
+
+        // Update Add Bot Button
+        if (addBotButton != null) {
+            boolean handInProgress = !gameState.isBlank()
+                    && !"WAITING_FOR_PLAYERS".equals(gameState)
+                    && !"HAND_OVER".equals(gameState);
+
+            addBotButton.setDisable(activePlayerCount >= this.maxSeatsAtTable || handInProgress);
+        }
+
+        // Update Game Status Label
+        if (gameStatusLabel != null) {
+            if (activePlayerCount < 2) {
+                gameStatusLabel.setText(tableLabel(tableBuyIn, smallBlind, bigBlind) + " | Waiting for players...");
+            } else if ("HAND_OVER".equals(gameState)) {
+                gameStatusLabel.setText("Round over - add bots now");
+            } else if (!gameState.isBlank()) {
+                gameStatusLabel.setText(tableLabel(tableBuyIn, smallBlind, bigBlind));
+            }
+        }
+
+        // Update Chips and Pot Info
+        if (!"HAND_OVER".equals(gameState)) {
+            chipsInfoLabel.setText("Your Chips: $" + getLocalChipCount() + "  |  Pot: $" + this.localPotSize);
+        } else if (winnerAnimationRunning) {
+            restoreWinnerDisplayAfterTableRefresh();
+        }
+    }
+
 
     private void handleTableSnapshot(GameMessageDTO event) {
         Map<String, Object> payload = asMap(event.payload());
         handleTableSnapshot(payload);
     }
 
-    private void handleGameStateMessage(GameMessageDTO event) {
+    private void handleGameStateMessage(GameMessageDTO msg) {
         try {
-            GameState state = GameState.valueOf(asString(event.payload()));
-            if (state == GameState.PRE_FLOP_BETTING && !isVisualSequenceActive()) {
-                latestPlayerActions.clear();
-                if (actionFeedList != null) {
-                    actionFeedList.getItems().clear();
-                }
+            Map<String, Object> payload = asMap(msg.payload());
+
+            // Handle both possible key variations safely
+            String stateStr = (String) payload.get("gameState");
+            if (stateStr == null) {
+                stateStr = (String) payload.get("state");
             }
-            onGameStateChanged(state);
+
+            if (stateStr != null) {
+                GameState state = GameState.valueOf(stateStr);
+                Platform.runLater(() -> gameStatusLabel.setText("State: " + state));
+            } else {
+                System.err.println("[UI Warning] Game state payload missing state keys: " + payload);
+            }
         } catch (Exception e) {
-            System.err.println("Could not read game state update: " + event.payload());
+            System.err.println("Could not read game state update: " + msg.payload());
         }
     }
 

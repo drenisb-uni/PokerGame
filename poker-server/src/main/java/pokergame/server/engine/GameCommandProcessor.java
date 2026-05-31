@@ -6,11 +6,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class GameCommandProcessor {
     private final PokerGameEngine gameEngine;
+    private final GameEventBroadcaster gameEventBroadcaster;
     private final ConcurrentLinkedQueue<PlayerCommand> commandQueue = new ConcurrentLinkedQueue<>();
     private volatile boolean running = true;
 
     public GameCommandProcessor(PokerGameEngine gameEngine) {
         this.gameEngine = gameEngine;
+        this.gameEventBroadcaster = gameEngine.getBroadcaster();
         this.startProcessingLoop();
     }
 
@@ -22,22 +24,21 @@ public class GameCommandProcessor {
     private void startProcessingLoop() {
         Thread processorThread = new Thread(() -> {
             while (running) {
-                PlayerCommand command = commandQueue.poll();
-                if (command != null) {
-                    try {
-                        // Crucial Security Step: Validate turn order before execution
-                        System.out.println("Processing command from: " + command.getPlayerId());
-                        command.execute((IPublicActionAPI) gameEngine);
-                    } catch (Exception e) {
-                        System.err.println("Rejected invalid command: " + e.getMessage());
-                        // Optional: Send a "Error DTO" back to the specific offending client
+                try {
+                    PlayerCommand command = commandQueue.poll();
+
+                    // 1. GUARD: If the queue is empty, wait 10ms and try again
+                    if (command == null) {
+                        Thread.sleep(10);
+                        continue;
                     }
-                } else {
-                    try {
-                        Thread.sleep(10); // Don't burn up the CPU when queue is empty
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
+
+                    System.out.println("Processing command from: " + command.getPlayerId());
+                    command.execute(gameEngine);
+
+                } catch (Exception e) {
+                    System.err.println("[FATAL] Processor crashed!");
+                    e.printStackTrace();
                 }
             }
         }, "Game-Command-Processor-Thread");

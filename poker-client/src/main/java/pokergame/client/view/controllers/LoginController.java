@@ -9,6 +9,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.input.MouseEvent;
 import pokergame.GameContext;
 import pokergame.client.network.AuthNetworkClient;
+import pokergame.client.network.PokerWebSocketClient;
 import pokergame.client.view.SceneManager;
 import pokergame.domain.dto.PlayerProfileDTO;
 
@@ -50,7 +51,25 @@ public class LoginController {
                         if (userProfile != null) {
                             System.out.println("Login verified by server for: " + username);
                             GameContext.setPlayerProfile(userProfile);
-                            SceneManager.switchScene("Lobby.fxml");
+
+                            String token = GameContext.getJwtToken();
+                            int defaultBuyIn = 1000;
+
+                            // 2. Build your connection URI string with required parameters
+                            String serverUri = "ws://localhost:8081?token=" + token + "&buyIn=" + defaultBuyIn;
+
+                            System.out.println("[Login] Attempting to initialize WebSocket client...");
+
+                            boolean isConnected = PokerWebSocketClient.connect(serverUri);
+
+                            if (isConnected) {
+                                System.out.println("[Login] Connection verified. Moving to Lobby.");
+                                // Only switch scenes if the instance was successfully built and connected!
+                                SceneManager.switchScene("Lobby.fxml");
+                            } else {
+                                System.err.println("[Login Failed] Could not connect to the Poker Server.");
+                                showError(loginErrorLabel, "Could not connect to the Poker Server.");
+                            }
                         } else {
                             showError(loginErrorLabel, "Invalid username or password.");
                         }

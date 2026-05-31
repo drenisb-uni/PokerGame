@@ -53,9 +53,6 @@ public class PokerWebSocketServer extends WebSocketServer {
         }
 
         sessionManager.registerSession(playerId, conn);
-
-        // 2. CONCURRENCY SAFE: Queue the join action. Do not call gameEngine directly!
-        commandProcessor.queueCommand(new JoinTableCommand(playerId, buyIn));
     }
 
     @Override
@@ -71,66 +68,120 @@ public class PokerWebSocketServer extends WebSocketServer {
 
     @Override
     public void onMessage(WebSocket conn, String message) {
+        System.out.println("[SERVER TRACER] Incoming payload: " + message);
+
         try {
-            try {
-                ClientConnection client = sessionManager.getConnectionBySocket(conn);
-                if (client == null) return;
+            ClientConnection client = sessionManager.getConnectionBySocket(conn);
+            if (client == null) return;
 
-                JsonNode rootNode = objectMapper.readTree(message);
-                String actionType = rootNode.get("action").asText().toUpperCase();
-                String playerId = client.getPlayerId();
+            JsonNode rootNode = objectMapper.readTree(message);
+            if (!rootNode.has("action")) return;
 
-                // --- 1. LOBBY ACTIONS ---
-                if (actionType.equals("CREATE_TABLE")) {
-                    String newTableId = lobbyManager.createNewTable();
-                    client.setCurrentTableId(newTableId);
+            String actionType = rootNode.get("action").asText().toUpperCase();
+            String playerId = client.getPlayerId();
 
-                    GameMessageDTO response = new GameMessageDTO("TABLE_CREATED", Map.of("tableId", newTableId));
+            // Safe extraction of buyIn if provided by the UI, default to 1000
+            int buyInAmount = rootNode.has("buyIn") ? rootNode.get("buyIn").asInt() : 1000;
+
+// ==========================================
+            // 1. LOBBY ACTIONS (Room Lifecycle)
+            // ==========================================
+            if (actionType.equals("CREATE_TABLE")) {
+                String newTableId = lobbyManager.createNewTable();
+                client.setCurrentTableId(newTableId);
+
+                // Confirm room creation to host with their shiny 6-letter code
+                GameMessageDTO response = new GameMessageDTO("TABLE_CREATED", Map.of("tableId", newTableId));
+                sendMessageToPlayer(playerId, response);
+
+                // Grab the processor for this specific table
+                GameCommandProcessor tableProcessor = lobbyManager.getProcessorForTable(newTableId);
+
+                // 1. Queue the host to sit down
+                tableProcessor.queueCommand(new JoinTableCommand(playerId, buyInAmount));
+
+                // 2. Extract bot count and queue the bots
+                int botCount = rootNode.has("botCount") ? rootNode.get("botCount").asInt() : 0;
+                for (int i = 0; i < botCount; i++) {
+                    // We use the host's playerId as the requester for adding the bots
+                    tableProcessor.queueCommand(new AddBotCommand(playerId));
+                }
+
+                // 3. Extract auto-start flag and queue a start command if needed
+                boolean startImmediately = rootNode.has("startImmediately") && rootNode.get("startImmediately").asBoolean();
+                if (startImmediately) {
+                    // If you don't have a StartHandCommand yet, you will need to create a simple one
+                    // that tells your engine to begin the betting round!
+                    tableProcessor.queueCommand(new StartHandCommand(playerId));
+                }
+
+                return;
+            }
+
+            if (actionType.equals("JOIN_TABLE")) {
+                String targetTableId = rootNode.get("tableId").asText().toUpperCase();
+
+                if (lobbyManager.tableExists(targetTableId)) {
+                    client.setCurrentTableId(targetTableId);
+
+                    // Confirm join to client
+                    GameMessageDTO response = new GameMessageDTO("TABLE_JOINED", Map.of("tableId", targetTableId));
                     sendMessageToPlayer(playerId, response);
 
-                    lobbyManager.getProcessorForTable(newTableId)
-                            .queueCommand(new JoinTableCommand(playerId, 1000));
-                    return;
+                    // Queue the friend into the specific target table processor
+                    lobbyManager.getProcessorForTable(targetTableId)
+                            .queueCommand(new JoinTableCommand(playerId, buyInAmount));
+                } else {
+                    sendErrorToSocket(conn, "Table " + targetTableId + " does not exist.");
                 }
-
-                if (actionType.equals("JOIN_TABLE")) {
-                    String targetTableId = rootNode.get("tableId").asText().toUpperCase();
-                    if (lobbyManager.tableExists(targetTableId)) {
-                        client.setCurrentTableId(targetTableId);
-                        lobbyManager.getProcessorForTable(targetTableId)
-                                .queueCommand(new JoinTableCommand(playerId, 1000));
-                    } else {
-                        sendErrorToSocket(conn, "Table " + targetTableId + " does not exist.");
-                    }
-                    return;
-                }
-
-                // 4. CONCURRENCY SAFE: Convert ALL table interactions into single-threaded commands
-                PlayerCommand command = switch (actionType) {
-                    case "FOLD" -> new FoldCommand(playerId);
-                    case "CALL" -> new CallCommand(playerId);
-                    case "RAISE" -> {
-                        JsonNode amtNode = rootNode.get("amount");
-                        if (amtNode == null || !amtNode.isInt() || amtNode.asInt() <= 0) {
-                            throw new IllegalArgumentException("Raise amount must be a positive integer");
-                        }
-                        yield new RaiseCommand(playerId, amtNode.asInt());
-                    }
-                    case "ADD_BOT" -> new AddBotCommand(playerId);
-                    case "LEAVE_TABLE" -> new LeaveTableCommand(playerId);
-                    case "REFRESH_TABLE" -> new RefreshSnapshotCommand(playerId);
-                    default -> null;
-                };
-
-                if (command != null) {
-                    commandProcessor.queueCommand(command);
-                }
-
-            } catch (IllegalArgumentException e) {
-                sendErrorToSocket(conn, "Invalid payload configuration: " + e.getMessage());
+                return;
             }
+
+            // ==========================================
+            // 2. IN-GAME ACTIONS (Gameplay Guard & Route)
+            // ==========================================
+            String activeTableId = client.getCurrentTableId();
+            if (activeTableId == null) {
+                sendErrorToSocket(conn, "Action rejected: You are not currently seated at a table.");
+                return;
+            }
+
+            GameCommandProcessor activeProcessor = lobbyManager.getProcessorForTable(activeTableId);
+            if (activeProcessor == null) {
+                sendErrorToSocket(conn, "Action rejected: Your table session has expired or closed.");
+                return;
+            }
+
+            // Convert table interactions into target-room commands
+            PlayerCommand command = switch (actionType) {
+                case "FOLD" -> new FoldCommand(playerId);
+                case "CALL" -> new CallCommand(playerId);
+                case "RAISE" -> {
+                    JsonNode amtNode = rootNode.get("amount");
+                    if (amtNode == null || !amtNode.isInt() || amtNode.asInt() <= 0) {
+                        throw new IllegalArgumentException("Raise amount must be a positive integer");
+                    }
+                    yield new RaiseCommand(playerId, amtNode.asInt());
+                }
+                case "ADD_BOT" -> new AddBotCommand(playerId);
+                case "LEAVE_TABLE" -> new LeaveTableCommand(playerId);
+                case "REFRESH_TABLE" -> new RefreshSnapshotCommand(playerId);
+                case "START_HAND" -> new StartHandCommand(playerId);
+                default -> null;
+            };
+
+            // SUCCESS: Push execution straight to that specific table's single-threaded game loop
+            if (command != null) {
+                activeProcessor.queueCommand(command);
+            } else {
+                sendErrorToSocket(conn, "Unknown action command: " + actionType);
+            }
+
+        } catch (IllegalArgumentException e) {
+            sendErrorToSocket(conn, "Invalid payload configuration: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("Malformed data dropped: " + e.getMessage());
+            System.err.println("[WebSocket] Malformed data dropped from client: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

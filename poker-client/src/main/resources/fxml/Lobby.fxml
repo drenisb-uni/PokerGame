@@ -25,7 +25,7 @@
                   <Button onAction="#handlePlayNow" styleClass="primary-button, massive-btn" text="Play Bots" />
                   <Label style="-fx-text-fill: #aaaaaa; -fx-font-size: 14px;" text="Start playing right away" />
       
-                  <Button layoutX="582.0" layoutY="60.0" onAction="#handleHostTable" style="-fx-text-fill: whiut;" text="Host Table">
+                  <Button layoutX="582.0" layoutY="60.0" onAction="#handleHostTable" style="-fx-text-fill: white;" text="Host Table">
                       <styleClass>
                          <String fx:value="massive-btn" />
                          <String fx:value="all-in-btn" />
@@ -53,7 +53,7 @@
 
                <Label styleClass="popup-title" text="Raise Amount" />
 
-               <TextField fx:id="botCount" promptText="Enter amount..." styleClass="input-field" />
+               <Spinner fx:id="botCountInput" min="1" max="5" initialValue="1" styleClass="input-field" />
 
                <HBox alignment="CENTER" spacing="15.0">
                    <Button onAction="#handleConfirmPN" styleClass="popup-btn, confirm-btn" text="Confirm" />
@@ -70,7 +70,7 @@
 
                <Label styleClass="popup-title" text="Raise Amount" />
 
-               <TextField fx:id="botCount" promptText="Enter amount..." styleClass="input-field" />
+               <TextField fx:id="buyInInput" promptText="Enter buy in amount..." styleClass="input-field" />
 
                <HBox alignment="CENTER" spacing="15.0">
                    <Button onAction="#handleConfirmHT" styleClass="popup-btn, confirm-btn" text="Confirm" />
@@ -88,7 +88,7 @@
 
                <Label styleClass="popup-title" text="Raise Amount" />
 
-               <TextField fx:id="tableIdInput" promptText="Enter amount..." styleClass="input-field" />
+               <TextField fx:id="tableIdInput" promptText="Enter Table ID..." styleClass="input-field" />
 
                <HBox alignment="CENTER" spacing="15.0">
                    <Button onAction="#handleConfirmJT" styleClass="popup-btn, confirm-btn" text="Confirm" />

@@ -1,12 +1,18 @@
 package pokergame.client.view.controllers;
 
+import com.fasterxml.jackson.core.ObjectCodec;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import javafx.animation.FadeTransition;
 import javafx.animation.ScaleTransition;
 import javafx.animation.SequentialTransition;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.StackPane;
 import javafx.util.Duration;
@@ -19,11 +25,16 @@ import pokergame.domain.dto.PlayerProfileDTO;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
+import org.json.JSONObject;
+
 public class LobbyController {
+    private boolean isJoiningTable = false;
+
     private static final int DANIEL_TABLE_BUY_IN = 500;
     private static final int PHIL_TABLE_BUY_IN = 10000;
     private static final int LOCAL_TABLE_BUY_IN = 50;
     String token = GameContext.getJwtToken();
+
     @FXML private Label bankrollLabel;
     @FXML private Label joinStatusLabel;
     @FXML private Button danielTableButton;
@@ -31,16 +42,36 @@ public class LobbyController {
     @FXML private Button localTableButton;
     
     @FXML private StackPane playNowPopupOverlay;
-    @FXML private TextField botCountInput;
+    @FXML private Spinner<Integer> botCountInput;
+
     @FXML private StackPane hostTablePopupOverlay;
+    @FXML private TextField buyInInput;
 
     @FXML private StackPane joinTablePopupOverlay;
     @FXML private TextField tableIdInput;
+    private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());;
 
     @FXML
     public void initialize() {
+        isJoiningTable = false;
         int bankroll = getBankroll();
         bankrollLabel.setText("Bankroll: $" + formatMoney(bankroll));
+
+        String token = GameContext.getJwtToken();
+        int defaultBuyIn = 1000;
+
+        // 2. Build your connection URI string with required parameters
+        String serverUri = "ws://localhost:8081?token=" + token + "&buyIn=" + defaultBuyIn;
+
+        System.out.println("[Lobby] Attempting to initialize WebSocket client...");
+
+        boolean isConnected = PokerWebSocketClient.connect(serverUri);
+
+        if (isConnected) {
+            System.out.println("[Lobby] Connection verified.");
+        } else {
+            System.err.println("[Lobby Failed] Could not connect to the Poker Server.");
+        }
     }
 
 
@@ -62,7 +93,46 @@ public class LobbyController {
         showPopupAnimated(joinTablePopupOverlay);
     }
 
-    public void handleConfirmPN(ActionEvent actionEvent) {
+    @FXML
+    public void handleConfirmPN(ActionEvent event) {
+
+        if (event.getSource() instanceof Node) {
+            ((Node) event.getSource()).setDisable(true);
+        }
+
+        isJoiningTable = true;
+
+        // 1. THE GUARD: Ensure we are actually connected before doing anything!
+        if (PokerWebSocketClient.getInstance() == null || !PokerWebSocketClient.getInstance().isOpen()) {
+            System.err.println("[Lobby] Cannot start Play Now: WebSocket is not connected!");
+            // Optional: Trigger your reconnect logic or show an error alert here
+            return;
+        }
+
+        // 2. Get the requested number of bots from the Spinner
+        int numBots = 0;
+        if (botCountInput != null && botCountInput.getValue() != null) {
+            numBots = botCountInput.getValue();
+        }
+
+        System.out.println("[Lobby] Starting 'Play Now' sequence with " + numBots + " bots...");
+
+        try {
+            // --- APPROACH A: The "All-in-One" Payload (Highly Recommended) ---
+            // If you can easily edit your server code, it is much safer to send ONE setup
+            // command and let the server handle the sequential logic internally.
+
+            JSONObject request = new JSONObject();
+            request.put("action", "CREATE_TABLE"); // or "PLAY_NOW"
+            request.put("buy-in", 1000);
+            request.put("botCount", numBots);
+            request.put("startImmediately", true);
+            PokerWebSocketClient.getInstance().send(request.toString());
+
+        } catch (Exception e) {
+            System.err.println("[Lobby FATAL] Failed to send Play Now commands.");
+            e.printStackTrace();
+        }
     }
 
     public void hidePopupPN(ActionEvent actionEvent) {
@@ -70,6 +140,42 @@ public class LobbyController {
     }
 
     public void handleConfirmHT(ActionEvent actionEvent) {
+        playButtonPress((Button) actionEvent.getSource());
+        try {
+            PokerWebSocketClient client = PokerWebSocketClient.getInstance();
+            if (client == null) {
+                System.err.println("[UI Error] Cannot create table: WebSocket client is not initialized!");
+                // Kick them back to login or show an error dialog
+                return;
+            }
+
+            // 1. Safely grab the typed text, fallback to prompt if empty
+            String inputText = buyInInput.getText();
+            if (inputText == null || inputText.trim().isEmpty()) {
+                inputText = buyInInput.getPromptText();
+            }
+
+            int buyInAmount = Integer.parseInt(inputText);
+
+            // 2. Validate against bankroll
+            if (buyInAmount > GameContext.getPlayerProfile().totalBankroll()) {
+                System.out.println("Buy-in Amount is invalid: Exceeds bankroll");
+                return;
+            }
+
+            // 3. Construct the network payload
+            ObjectNode message = objectMapper.createObjectNode();
+            message.put("action", "CREATE_TABLE");
+            message.put("buyIn", buyInAmount); // Send their chosen buy-in to the server
+
+            // 4. Send it over the WebSocket!
+            PokerWebSocketClient.getInstance().send(message.toString());
+
+            System.out.println("[UI] Sent CREATE_TABLE request with buy-in: " + buyInAmount);
+
+        } catch (NumberFormatException e) {
+            System.out.println("Please enter a valid number.");
+        }
     }
 
     public void hidePopupHT(ActionEvent actionEvent) {
@@ -79,14 +185,28 @@ public class LobbyController {
     public void handleConfirmJT(ActionEvent actionEvent) {
         playButtonPress((Button) actionEvent.getSource());
         try {
-            int tableId = Integer.parseInt(tableIdInput.getText().trim());
+            String inputText = tableIdInput.getText();
+            if (inputText == null || inputText.trim().isEmpty()) {
+                inputText = tableIdInput.getPromptText();
+            }
 
-            if (tableId != 6) {
+            String tableId = tableIdInput.getText().trim();
+
+            if (tableId.length() != 6) {
                 System.out.println("Table ID is invalid");
                 return;
             }
+            ObjectNode message = objectMapper.createObjectNode();
+            message.put("action", "JOIN_TABLE");
+            message.put("tableId", tableId);
 
-            sendAction("JOIN_TABLE", tableId);
+            if (PokerWebSocketClient.getInstance() == null || !PokerWebSocketClient.getInstance().isOpen()) {
+                System.err.println("[Lobby] Cannot host table: WebSocket is not connected!");
+
+                return;
+            }
+
+            PokerWebSocketClient.getInstance().send(message.toString());
 
         } catch (NumberFormatException e) {
             System.out.println("Please enter a valid number.");
