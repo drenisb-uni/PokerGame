@@ -4,12 +4,15 @@ import io.javalin.http.Context;
 import pokergame.domain.dto.LoginRequestDTO;
 import pokergame.domain.dto.PlayerProfileDTO;
 import pokergame.domain.dto.RegisterRequestDTO;
+import pokergame.engine.IPublicActionAPI;
 
 public class HttpRouteService {
     private final ServerAuthService authService;
+    private final TokenValidationService tokenValidationService;
 
-    public HttpRouteService(ServerAuthService authService) {
+    public HttpRouteService(ServerAuthService authService,  TokenValidationService tokenValidationService) {
         this.authService = authService;
+        this.tokenValidationService = tokenValidationService;
     }
 
     public void handleLogin(Context ctx) {
@@ -17,6 +20,9 @@ public class HttpRouteService {
         PlayerProfileDTO profile = authService.authenticatePlayer(credentials.username(), credentials.password());
 
         if (profile != null) {
+            String token = tokenValidationService.generateToken(profile.id(), profile.username());
+
+            ctx.header("Authorization", "Bearer " + token);
             ctx.status(200).json(profile);
         } else {
             ctx.status(401).result("Invalid Credentials");

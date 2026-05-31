@@ -28,7 +28,8 @@ public class ServerApp {
         BotManager botManager = new BotManager(commandProcessor, gameEngine);
         gameEngine.addObserver(botManager);
 
-        HttpRouteService httpRouteService = new HttpRouteService(authService);
+        TokenValidationService tokenValidationService = new TokenValidationService();
+        HttpRouteService httpRouteService = new HttpRouteService(authService, tokenValidationService);
         GameNetworkService gameNetworkService = new GameNetworkService(commandProcessor);
 
         Javalin httpApp = Javalin.create(config -> {
@@ -43,7 +44,7 @@ public class ServerApp {
         // If your custom PokerWebSocketServer needs the gameNetworkService callbacks,
         // you pass it here, otherwise you configure its internal ws pathways to call gameNetworkService.
 
-        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, new TokenValidationService());
+        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, tokenValidationService);
         wsServer.start();
 
         System.out.println(">>> Server fully booted. Listening for HTTP on 8080, WebSockets on 8081 <<<");
