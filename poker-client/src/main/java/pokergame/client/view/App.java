@@ -35,7 +35,7 @@ public class App extends Application {
 
         // 2. Launch the user directly into the Authentication Workflow
         // Switch this string to match your exact file name (e.g., "Login.fxml" or "Signup.fxml")
-        SceneManager.switchScene("Lobby.fxml");
+        SceneManager.switchScene("Login.fxml");
 
         primaryStage.setTitle("Poker");
         primaryStage.setResizable(true);
