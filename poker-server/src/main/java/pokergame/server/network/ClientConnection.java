@@ -7,6 +7,7 @@ import java.nio.channels.DatagramChannel;
 public class ClientConnection {
     private final String playerId;
     private final WebSocket session;
+    private String currentTableId;
 
     public ClientConnection(String playerId, WebSocket session) {
         this.playerId = playerId;
@@ -35,4 +36,7 @@ public class ClientConnection {
     public WebSocket getSocket() {
         return session;
     }
+
+    public String getCurrentTableId() { return currentTableId; }
+    public void setCurrentTableId(String currentTableId) { this.currentTableId = currentTableId; }
 }

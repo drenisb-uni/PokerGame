@@ -11,11 +11,13 @@ import pokergame.domain.dto.GameMessageDTO;
 import pokergame.engine.commands.*;
 import pokergame.server.engine.GameCommandProcessor;
 import pokergame.server.service.GameNetworkService;
+import pokergame.server.service.LobbyManager;
 import pokergame.server.service.TokenValidationService;
 
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 public class PokerWebSocketServer extends WebSocketServer {
 
@@ -23,14 +25,16 @@ public class PokerWebSocketServer extends WebSocketServer {
     private final GameCommandProcessor commandProcessor;
     private final TokenValidationService tokenService;
     private final GameNetworkService gameNetworkService;
+    private final LobbyManager lobbyManager;
     private final ObjectMapper objectMapper;
 
-    public PokerWebSocketServer(int port, GameCommandProcessor processor, TokenValidationService tokenService, GameNetworkService gameNetworkService) {
+    public PokerWebSocketServer(int port, GameCommandProcessor processor, TokenValidationService tokenService, GameNetworkService gameNetworkService, LobbyManager lobbyManager) {
         super(new InetSocketAddress(port));
         this.sessionManager = new SessionManager();
         this.commandProcessor = processor;
         this.tokenService = tokenService;
         this.gameNetworkService = gameNetworkService;
+        this.lobbyManager = lobbyManager;
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
@@ -68,45 +72,63 @@ public class PokerWebSocketServer extends WebSocketServer {
     @Override
     public void onMessage(WebSocket conn, String message) {
         try {
-            ClientConnection client = sessionManager.getConnectionBySocket(conn);
-            if (client == null) return;
+            try {
+                ClientConnection client = sessionManager.getConnectionBySocket(conn);
+                if (client == null) return;
 
-            JsonNode rootNode = objectMapper.readTree(message);
-            if (!rootNode.has("action")) return;
+                JsonNode rootNode = objectMapper.readTree(message);
+                String actionType = rootNode.get("action").asText().toUpperCase();
+                String playerId = client.getPlayerId();
 
-            String actionType = rootNode.get("action").asText().toUpperCase();
-            String playerId = client.getPlayerId();
+                // --- 1. LOBBY ACTIONS ---
+                if (actionType.equals("CREATE_TABLE")) {
+                    String newTableId = lobbyManager.createNewTable();
+                    client.setCurrentTableId(newTableId);
 
-            // 4. CONCURRENCY SAFE: Convert ALL table interactions into single-threaded commands
-            PlayerCommand command = switch (actionType) {
-                case "FOLD" -> new FoldCommand(playerId);
-                case "CALL" -> new CallCommand(playerId);
-                case "RAISE" -> {
-                    JsonNode amtNode = rootNode.get("amount");
-                    if (amtNode == null || !amtNode.isInt() || amtNode.asInt() <= 0) {
-                        throw new IllegalArgumentException("Raise amount must be a positive integer");
-                    }
-                    yield new RaiseCommand(playerId, amtNode.asInt());
+                    GameMessageDTO response = new GameMessageDTO("TABLE_CREATED", Map.of("tableId", newTableId));
+                    sendMessageToPlayer(playerId, response);
+
+                    lobbyManager.getProcessorForTable(newTableId)
+                            .queueCommand(new JoinTableCommand(playerId, 1000));
+                    return;
                 }
-                case "JOIN_TABLE" -> {
-                    JsonNode amtNode = rootNode.get("amount");
-                    if (amtNode == null || !amtNode.isInt() || amtNode.asInt() <= 0) {
-                        throw new IllegalArgumentException("Buy in amount must be a positive integer");
-                    }
-                    yield new JoinTableCommand(playerId,  amtNode.asInt());
-                }
-                case "ADD_BOT" -> new AddBotCommand(playerId);
-                case "LEAVE_TABLE" -> new LeaveTableCommand(playerId);
-                case "REFRESH_TABLE" -> new RefreshSnapshotCommand(playerId);
-                default -> null;
-            };
 
-            if (command != null) {
-                commandProcessor.queueCommand(command);
+                if (actionType.equals("JOIN_TABLE")) {
+                    String targetTableId = rootNode.get("tableId").asText().toUpperCase();
+                    if (lobbyManager.tableExists(targetTableId)) {
+                        client.setCurrentTableId(targetTableId);
+                        lobbyManager.getProcessorForTable(targetTableId)
+                                .queueCommand(new JoinTableCommand(playerId, 1000));
+                    } else {
+                        sendErrorToSocket(conn, "Table " + targetTableId + " does not exist.");
+                    }
+                    return;
+                }
+
+                // 4. CONCURRENCY SAFE: Convert ALL table interactions into single-threaded commands
+                PlayerCommand command = switch (actionType) {
+                    case "FOLD" -> new FoldCommand(playerId);
+                    case "CALL" -> new CallCommand(playerId);
+                    case "RAISE" -> {
+                        JsonNode amtNode = rootNode.get("amount");
+                        if (amtNode == null || !amtNode.isInt() || amtNode.asInt() <= 0) {
+                            throw new IllegalArgumentException("Raise amount must be a positive integer");
+                        }
+                        yield new RaiseCommand(playerId, amtNode.asInt());
+                    }
+                    case "ADD_BOT" -> new AddBotCommand(playerId);
+                    case "LEAVE_TABLE" -> new LeaveTableCommand(playerId);
+                    case "REFRESH_TABLE" -> new RefreshSnapshotCommand(playerId);
+                    default -> null;
+                };
+
+                if (command != null) {
+                    commandProcessor.queueCommand(command);
+                }
+
+            } catch (IllegalArgumentException e) {
+                sendErrorToSocket(conn, "Invalid payload configuration: " + e.getMessage());
             }
-
-        } catch (IllegalArgumentException e) {
-            sendErrorToSocket(conn, "Invalid payload configuration: " + e.getMessage());
         } catch (Exception e) {
             System.err.println("Malformed data dropped: " + e.getMessage());
         }

@@ -10,6 +10,7 @@ import pokergame.server.engine.GameCommandProcessor;
 import pokergame.server.engine.PokerGameEngine;
 import pokergame.server.network.PokerWebSocketServer;
 import pokergame.server.service.GameNetworkService;
+import pokergame.server.service.LobbyManager;
 import pokergame.server.service.TokenValidationService;
 
 import java.net.URI;
@@ -37,7 +38,7 @@ public class NetworkIntegrationTest {
         botManager = new BotManager(processor, engine);
 
         // Boot up our actual custom server on an isolated test port
-        server = new PokerWebSocketServer(TEST_PORT, processor, new TokenValidationService(), new GameNetworkService(processor));
+        server = new PokerWebSocketServer(TEST_PORT, processor, new TokenValidationService(), new GameNetworkService(processor), new LobbyManager());
         server.start();
 
         // Brief sleep to let the TCP socket bind smoothly

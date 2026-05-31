@@ -14,10 +14,7 @@ import pokergame.server.engine.GameEventBroadcaster;
 import pokergame.server.engine.PokerGameEngine;
 import pokergame.server.network.NetworkEventAdapter;
 import pokergame.server.network.PokerWebSocketServer;
-import pokergame.server.service.ServerAuthService;
-import pokergame.server.service.HttpRouteService;
-import pokergame.server.service.GameNetworkService;
-import pokergame.server.service.TokenValidationService;
+import pokergame.server.service.*;
 
 public class ServerApp {
     public static void main(String[] args) {
@@ -28,6 +25,7 @@ public class ServerApp {
         PokerGameEngine gameEngine = new PokerGameEngine(playerRepository);
         GameCommandProcessor commandProcessor = new GameCommandProcessor(gameEngine);
         BotManager botManager = new BotManager(commandProcessor, gameEngine);
+        LobbyManager lobbyManager = new LobbyManager();
 
         TokenValidationService tokenValidationService = new TokenValidationService();
         HttpRouteService httpRouteService = new HttpRouteService(authService, tokenValidationService);
@@ -41,7 +39,7 @@ public class ServerApp {
         httpApp.post("/api/auth/login", httpRouteService::handleLogin);
         httpApp.post("/api/auth/register", httpRouteService::handleRegister);
 
-        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, tokenValidationService, gameNetworkService);
+        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, tokenValidationService, gameNetworkService, lobbyManager);
         NetworkEventAdapter networkEventAdapter = new NetworkEventAdapter(wsServer);
 
         gameEngine.addObserver(botManager);

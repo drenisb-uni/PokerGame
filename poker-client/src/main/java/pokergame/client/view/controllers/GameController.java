@@ -49,6 +49,7 @@ public class GameController implements IGameEventListener {
     private ImageView[] communityCards;
     @FXML private FlowPane playersContainer;
     @FXML private Label chipsInfoLabel;
+    @FXML private Label inviteCodeLabel;
     @FXML private Label gameStatusLabel;
     @FXML private Button foldButton;
     @FXML private Button callButton;

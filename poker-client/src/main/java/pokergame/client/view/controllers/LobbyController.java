@@ -1,10 +1,17 @@
 package pokergame.client.view.controllers;
 
+import javafx.animation.FadeTransition;
+import javafx.animation.ScaleTransition;
+import javafx.animation.SequentialTransition;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.StackPane;
+import javafx.util.Duration;
 import pokergame.GameContext;
+import pokergame.client.network.OutboundActionPayload;
 import pokergame.client.network.PokerWebSocketClient;
 import pokergame.client.view.SceneManager;
 import pokergame.domain.dto.PlayerProfileDTO;
@@ -22,21 +29,20 @@ public class LobbyController {
     @FXML private Button danielTableButton;
     @FXML private Button philTableButton;
     @FXML private Button localTableButton;
+    
+    @FXML private StackPane playNowPopupOverlay;
+    @FXML private TextField botCountInput;
+    @FXML private StackPane hostTablePopupOverlay;
+
+    @FXML private StackPane joinTablePopupOverlay;
+    @FXML private TextField tableIdInput;
 
     @FXML
     public void initialize() {
         int bankroll = getBankroll();
         bankrollLabel.setText("Bankroll: $" + formatMoney(bankroll));
-
-        updateJoinButton(danielTableButton, DANIEL_TABLE_BUY_IN, bankroll);
-        updateJoinButton(philTableButton, PHIL_TABLE_BUY_IN, bankroll);
-        updateJoinButton(localTableButton, LOCAL_TABLE_BUY_IN, bankroll);
     }
 
-    @FXML
-    public void handlePlayNow() {
-        SceneManager.switchScene("BotConfiguration.fxml");
-    }
 
     @FXML
     public void handleProfile() {
@@ -44,18 +50,59 @@ public class LobbyController {
     }
 
     @FXML
-    public void handleJoinDanielTable() {
-        joinGameTable(DANIEL_TABLE_BUY_IN);
+    public void handlePlayNow() {
+        showPopupAnimated(playNowPopupOverlay);
     }
 
-    @FXML
-    public void handleJoinPhilTable() {
-        joinGameTable(PHIL_TABLE_BUY_IN);
+    public void handleHostTable(ActionEvent actionEvent) {
+        showPopupAnimated(hostTablePopupOverlay);
     }
 
-    @FXML
-    public void handleJoinLocalTable() {
-        joinGameTable(LOCAL_TABLE_BUY_IN);
+    public void handleJoinTable(ActionEvent actionEvent) {
+        showPopupAnimated(joinTablePopupOverlay);
+    }
+
+    public void handleConfirmPN(ActionEvent actionEvent) {
+    }
+
+    public void hidePopupPN(ActionEvent actionEvent) {
+        hidePopupAnimated(playNowPopupOverlay);
+    }
+
+    public void handleConfirmHT(ActionEvent actionEvent) {
+    }
+
+    public void hidePopupHT(ActionEvent actionEvent) {
+        hidePopupAnimated(hostTablePopupOverlay);
+    }
+
+    public void handleConfirmJT(ActionEvent actionEvent) {
+        playButtonPress((Button) actionEvent.getSource());
+        try {
+            int tableId = Integer.parseInt(tableIdInput.getText().trim());
+
+            if (tableId != 6) {
+                System.out.println("Table ID is invalid");
+                return;
+            }
+
+            sendAction("JOIN_TABLE", tableId);
+
+        } catch (NumberFormatException e) {
+            System.out.println("Please enter a valid number.");
+        }
+    }
+
+    public void hidePopupJT(ActionEvent actionEvent) {
+        hidePopupAnimated(joinTablePopupOverlay);
+    }
+
+
+    private void sendAction(String actionType, int amount) {
+        PokerWebSocketClient client = PokerWebSocketClient.getInstance();
+        if (client != null && client.isOpen()) {
+            client.sendPayload(new OutboundActionPayload(actionType, amount));
+        }
     }
 
     private void joinGameTable(int buyIn) {
@@ -91,12 +138,6 @@ public class LobbyController {
         }
     }
 
-    private void updateJoinButton(Button button, int buyIn, int bankroll) {
-        boolean canAfford = bankroll >= buyIn;
-        button.setDisable(!canAfford);
-        button.setText(canAfford ? "Join Table" : "Need $" + formatMoney(buyIn));
-    }
-
     private int getBankroll() {
         PlayerProfileDTO profile = GameContext.getPlayerProfile();
         return profile == null ? 0 : profile.totalBankroll();
@@ -110,7 +151,47 @@ public class LobbyController {
         return String.format("%,d", amount);
     }
 
-    public void handleHostTable(ActionEvent actionEvent) {
-        SceneManager.switchScene("MultiplayerConfiguration.fxml");
+    private void showPopupAnimated(StackPane popupOverlay) {
+        if (popupOverlay == null) {
+            return;
+        }
+
+        popupOverlay.setOpacity(0);
+        popupOverlay.setVisible(true);
+
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(320), popupOverlay);
+        fadeIn.setToValue(1);
+        fadeIn.play();
+    }
+
+    private void hidePopupAnimated(StackPane popupOverlay) {
+        if (popupOverlay == null || !popupOverlay.isVisible()) {
+            return;
+        }
+
+        FadeTransition fadeOut = new FadeTransition(Duration.millis(260), popupOverlay);
+        fadeOut.setToValue(0);
+        fadeOut.setOnFinished(event -> {
+            popupOverlay.setVisible(false);
+            popupOverlay.setOpacity(1);
+        });
+        fadeOut.play();
+    }
+
+
+    private void playButtonPress(Button button) {
+        if (button == null) {
+            return;
+        }
+
+        ScaleTransition press = new ScaleTransition(Duration.millis(110), button);
+        press.setToX(0.94);
+        press.setToY(0.94);
+
+        ScaleTransition release = new ScaleTransition(Duration.millis(170), button);
+        release.setToX(1);
+        release.setToY(1);
+
+        new SequentialTransition(press, release).play();
     }
 }
