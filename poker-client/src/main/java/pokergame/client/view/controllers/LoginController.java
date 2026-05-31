@@ -11,6 +11,9 @@ import pokergame.GameContext;
 import pokergame.client.network.AuthNetworkClient;
 import pokergame.client.view.SceneManager;
 import pokergame.domain.dto.PlayerProfileDTO;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -100,7 +103,43 @@ public class LoginController {
                     });
                 });
     }
+    @FXML
+    public void handleForgotPassword(ActionEvent event) {
+        // 1. Create a built-in JavaFX popup dialog
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Forgot Password");
+        dialog.setHeaderText("Password Reset Request");
+        dialog.setContentText("Enter your registered username:");
 
+        // 2. Wait for the user to type something and hit "OK"
+        dialog.showAndWait().ifPresent(username -> {
+            if (username.trim().isEmpty()) {
+                showError(loginErrorLabel, "Username cannot be empty for a reset!");
+                return;
+            }
+
+            loginErrorLabel.setVisible(false);
+            System.out.println("Dispatching password reset request for: " + username);
+
+            // 3. Fire the network request asynchronously (just like login)
+            CompletableFuture.supplyAsync(() -> authClient.requestPasswordReset(username.trim()))
+                    .thenAccept(isResetSuccessful -> {
+                        Platform.runLater(() -> {
+                            // 4. Show a success or failure popup
+                            Alert alert = new Alert(isResetSuccessful ? AlertType.INFORMATION : AlertType.ERROR);
+                            alert.setTitle("Password Reset Status");
+                            alert.setHeaderText(null);
+
+                            if (isResetSuccessful) {
+                                alert.setContentText("Success! The server has generated a temporary password. Check the backend console.");
+                            } else {
+                                alert.setContentText("Error: Could not reset password. User might not exist.");
+                            }
+                            alert.showAndWait();
+                        });
+                    });
+        });
+    }
     private void showError(Label errorLabel, String message) {
         errorLabel.setText(message);
         errorLabel.setVisible(true);

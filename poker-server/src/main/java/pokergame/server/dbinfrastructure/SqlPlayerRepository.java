@@ -106,6 +106,30 @@ public class SqlPlayerRepository implements IPlayerRepository {
         }
     }
 
+    /**
+     * Updates the password hash column for a target user profile.
+     * Invoked safely from the asynchronous auth-service pipeline.
+     */
+    @Override
+    public boolean updatePasswordHash(String username, String newHash) {
+        String sql = "UPDATE player_profiles SET password_hash = ? WHERE username = ?";
+
+        try (Connection conn = getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, newHash);
+            stmt.setString(2, username);
+
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
+
+        } catch (SQLException e) {
+            System.err.println("[SQL Exception] Error executing recovery update query for user: " + username);
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     private PlayerProfileDTO mapRowToProfile(ResultSet rs) throws SQLException {
         return new PlayerProfileDTO(
                 rs.getString("id"),

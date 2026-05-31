@@ -6,10 +6,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Map; // Added for easy inline JSON serialization
 
 import pokergame.GameContext;
 import pokergame.domain.dto.LoginRequestDTO;
-import pokergame.domain.dto.RegisterRequestDTO; // Create this record in poker-common
+import pokergame.domain.dto.RegisterRequestDTO;
 import pokergame.domain.dto.PlayerProfileDTO;
 
 public class AuthNetworkClient {
@@ -17,11 +18,42 @@ public class AuthNetworkClient {
     private final ObjectMapper objectMapper;
     private final String serverBaseUrl = "http://localhost:8080/api/auth";
 
-    public  AuthNetworkClient() {
+    public AuthNetworkClient() {
         this.httpClient  = HttpClient.newHttpClient();
-        this.objectMapper = new ObjectMapper();;
+        this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
     }
+
+    /**
+     * Sends a password reset request to the backend auth service cluster.
+     * Returns true if user exists and a temporary key was generated.
+     */
+    public boolean requestPasswordReset(String username) {
+        try {
+            // Leverage your existing objectMapper using a key-value map for safe JSON serialization
+            Map<String, String> payload = Map.of("username", username);
+            String jsonBody = objectMapper.writeValueAsString(payload);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(serverBaseUrl + "/forgot-password"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            System.out.println("Forgot Password Status Code: " + response.statusCode());
+            System.out.println("Server Reset Response Body: " + response.body());
+
+            // Returns true if server returns a standard 200 OK acknowledgment
+            return response.statusCode() == 200;
+
+        } catch (Exception e) {
+            System.err.println("Password reset network failure: " + e.getMessage());
+            return false;
+        }
+    }
+
     /**
      * Sends credentials to server. Returns the PlayerProfileDTO if successful, null if failed.
      */
@@ -42,18 +74,14 @@ public class AuthNetworkClient {
             System.out.println("Server Response Body: " + response.body());
 
             if (response.statusCode() == 200) {
-                // 1. EXTRACTION: Grab the Authorization header sent by Javalin
                 response.headers().firstValue("Authorization").ifPresent(authHeader -> {
                     if (authHeader.startsWith("Bearer ")) {
-                        String token = authHeader.substring(7); // Strip off "Bearer "
-
-                        // 2. STORAGE: Save it to your global game state!
+                        String token = authHeader.substring(7);
                         GameContext.setJwtToken(token);
                         System.out.println("[Auth Client] Successfully intercepted and saved JWT Token!");
                     }
                 });
 
-                // 3. PARSING: Read the profile JSON sent back by the Javalin server
                 return objectMapper.readValue(response.body(), PlayerProfileDTO.class);
             }
         } catch (Exception e) {
@@ -77,7 +105,7 @@ public class AuthNetworkClient {
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            return response.statusCode() == 201; // 201 Created
+            return response.statusCode() == 201;
 
         } catch (Exception e) {
             System.err.println("Registration network failure: " + e.getMessage());
