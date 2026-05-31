@@ -156,9 +156,10 @@ public class PokerGameEngine implements IPublicActionAPI {
             }
         }
 
-        HandActionDTO persistedAction = broadcaster.broadcastAction(actor, actionType, broadcastAmount, currentState, currentHandId);
-        saveHandAction(persistedAction);
-        advanceTurn();
+//        HandActionDTO persistedAction = broadcaster.broadcastAction(actor, actionType, broadcastAmount, currentState, currentHandId);
+//        saveHandAction(persistedAction);
+//        advanceTurn();
+
         // Only broadcast the massive table snapshot if they ACTUALLY sat down
         // (e.g., skipping the broadcast if the table was full or they were already seated)
         if (seatedSuccessfully) {
