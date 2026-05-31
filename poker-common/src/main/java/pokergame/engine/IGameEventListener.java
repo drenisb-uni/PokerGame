@@ -6,6 +6,7 @@ import pokergame.domain.model.Card;
 import pokergame.domain.rules.HandResult;
 
 import java.util.List;
+import java.util.Map;
 
 // Inside poker-common module
 public interface IGameEventListener {
@@ -16,5 +17,6 @@ public interface IGameEventListener {
     void onPlayerTurn(String username, int amountToCall);
     void onPlayerAction(HandActionDTO action);
     void onHandResult(List<String> winnerUsernames, HandResult winnerHand, int potSize);
-
+    void onTableSnapshotBroadcast(Map<String, Object> snapshotPayload);
+    void onTargetedTableSnapshot(String playerId, Map<String, Object> snapshotPayload);
 }

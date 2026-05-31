@@ -33,6 +33,31 @@ public class WebSocketClientAPI implements IPublicActionAPI {
         sendAction("RAISE", amount);
     }
 
+    @Override
+    public void JoinTable(String playerId, int buyIn) {
+        sendAction("JOIN_TABLE", buyIn);
+    }
+
+    @Override
+    public void LeaveTable(String playerId) {
+        sendAction("LEAVE_TABLE", 0);
+    }
+
+    @Override
+    public void DisconnectPlayer(String playerId) {
+        sendAction("DISCONNECT_PLAYER", 0);
+    }
+
+    @Override
+    public void AddBot() {
+        sendAction("ADD_BOT", 0);
+    }
+
+    @Override
+    public void RefreshSnapshot(String playerId) {
+        sendAction("REFRESH_SNAPSHOT", 0);
+    }
+
     /**
      * Centralized serializer that converts the actions into a standard JSON text string
      * and transmits them asynchronously over the WebSocket wire.

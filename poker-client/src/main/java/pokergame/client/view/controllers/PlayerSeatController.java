@@ -39,6 +39,15 @@ public class PlayerSeatController {
         showCardBacks();
     }
 
+    public void setup(HandParticipantDTO seat, String displayName) {
+        usernameLabel.setText(displayName);
+        this.currentChips = 0;
+        updateChips(seat.startChips());
+        actionLabel.setText("");
+        resetSeatVisuals();
+        showCardBacks();
+    }
+
     public void updateChips(int amount) {
         int previousChips = currentChips;
         currentChips = amount;
