@@ -283,6 +283,16 @@ public class GameController implements IGameEventListener {
     }
 
     @Override
+    public void onTableSnapshotBroadcast(Map<String, Object> snapshotPayload) {
+
+    }
+
+    @Override
+    public void onTargetedTableSnapshot(String playerId, Map<String, Object> snapshotPayload) {
+
+    }
+
+    @Override
     public void onNewSeatOccupied(HandParticipantDTO participant) {
         Platform.runLater(() -> {
             if (seatControllerMap.containsKey(participant.playerUsername())) {

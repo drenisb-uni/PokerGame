@@ -6,6 +6,8 @@ import pokergame.domain.dto.PlayerProfileDTO;
 import pokergame.engine.GameState;
 import pokergame.engine.IGameEventListener;
 import pokergame.engine.IPublicActionAPI;
+import pokergame.engine.commands.PlayerCommand;
+import pokergame.server.bot.BotManager;
 import pokergame.server.domain.model.Deck;
 import pokergame.server.domain.model.TableSeat;
 import pokergame.server.domain.repository.IPlayerRepository;
@@ -22,6 +24,7 @@ public class PokerGameEngine implements IPublicActionAPI {
     private final TableManager tableManager = new TableManager();
     private final BettingPot bettingPot = new BettingPot();
     private final GameEventBroadcaster broadcaster = new GameEventBroadcaster();
+    private final BotManager botManager = new BotManager(new GameCommandProcessor(this), this);
 
     private final Deck deck = new Deck();
     private final List<Card> communityCards = new ArrayList<>();
@@ -32,6 +35,7 @@ public class PokerGameEngine implements IPublicActionAPI {
 
     public PokerGameEngine(IPlayerRepository playerRepository) {
         this.playerRepository = playerRepository;
+        this.broadcaster.setGameEngine(this);
     }
 
     public synchronized void startNewHand() {
@@ -67,47 +71,84 @@ public class PokerGameEngine implements IPublicActionAPI {
         promptNextPlayer();
     }
 
-    public void executePlayerAction(String username, String actionType, int amount) {
-        performAction(username, actionType, amount);
+    public void processIncomingCommand(PlayerCommand command) {
+        command.execute(this);
     }
+
+    // --- IPublicActionAPI Implementations ---
 
     @Override
     public void Fold(String actorUsername) {
-        performAction(actorUsername, "FOLD", 0);
+        TableSeat actor = validateAndGetActor(actorUsername);
+        if (actor == null) return;
+
+        bettingPot.handleFold(actor);
+        broadcaster.broadcastAction(actor, "FOLD", 0, currentState, currentHandId);
+        advanceTurn();
     }
 
     @Override
     public void Call(String actorUsername) {
-        performAction(actorUsername, "CALL", 0);
+        TableSeat actor = validateAndGetActor(actorUsername);
+        if (actor == null) return;
+
+        int broadcastAmount = bettingPot.getHighestBet() - actor.getCurrentRoundBet();
+        bettingPot.handleCall(actor);
+
+        broadcaster.broadcastAction(actor, "CALL", broadcastAmount, currentState, currentHandId);
+        advanceTurn();
     }
 
     @Override
     public void Raise(String actorUsername, int amount) {
-        performAction(actorUsername, "RAISE", amount);
+        TableSeat actor = validateAndGetActor(actorUsername);
+        if (actor == null) return;
+
+        bettingPot.handleRaise(actor, amount, tableManager.getActivePlayerCount());
+
+        broadcaster.broadcastAction(actor, "RAISE", amount, currentState, currentHandId);
+        advanceTurn();
     }
 
-    private void performAction(String username, String actionType, int amount) {
+    @Override
+    public void JoinTable(String playerId, int buyIn) {
+        tableManager.sitPlayerDown(playerId, buyIn);
+        broadcaster.broadcastTableSnapshot();
+    }
+
+    @Override
+    public void LeaveTable(String playerId) {
+        leavePlayer(playerId); // Uses your existing safe leave logic
+        broadcaster.broadcastTableSnapshot();
+    }
+
+    @Override
+    public void DisconnectPlayer(String playerId) {
+        System.out.println("[Engine Alert] Cleaning up disconnected player: " + playerId);
+        tableManager.handleCatastrophicDisconnect(playerId);
+        leavePlayer(playerId);
+        broadcaster.broadcastTableSnapshot();
+    }
+
+    @Override
+    public void AddBot() {
+        String botName = botManager.nextManualBotName();
+        sitPlayerDown(botName, this.getTableBuyIn(), -1);
+        broadcaster.broadcastTableSnapshot();
+    }
+
+    @Override
+    public void RefreshSnapshot(String playerId) {
+        broadcaster.sendTargetedSnapshot(playerId);
+    }
+
+    private TableSeat validateAndGetActor(String username) {
         TableSeat actor = tableManager.getCurrentPlayer();
-        if (!actor.getUsername().equals(username)) return;
-
-        int broadcastAmount = 0;
-        switch (actionType.toUpperCase()) {
-            case "FOLD" -> bettingPot.handleFold(actor);
-            case "CALL" -> {
-                broadcastAmount = bettingPot.getHighestBet() - actor.getCurrentRoundBet();
-                bettingPot.handleCall(actor);
-            }
-            case "RAISE" -> {
-                broadcastAmount = amount;
-                bettingPot.handleRaise(actor, amount, tableManager.getActivePlayerCount());
-            }
-            default -> {
-                return;
-            }
+        if (actor == null || !actor.getUsername().equals(username)) {
+            System.err.println("[Engine Warning] Ignored out-of-turn action from: " + username);
+            return null;
         }
-
-        broadcaster.broadcastAction(actor, actionType, broadcastAmount, currentState, currentHandId);
-        advanceTurn();
+        return actor;
     }
 
     public synchronized void leavePlayer(String username) {
@@ -463,5 +504,13 @@ public class PokerGameEngine implements IPublicActionAPI {
             }
         }
         return -1;
+    }
+
+    public TableManager getTableManager() {
+        return tableManager;
+    }
+
+    public BettingPot getBettingPot() {
+        return bettingPot;
     }
 }

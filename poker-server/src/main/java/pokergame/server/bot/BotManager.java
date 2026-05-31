@@ -405,6 +405,16 @@ public class BotManager implements IGameEventListener {
     }
     @Override public void onHandResult(List<String> winnerUsernames, HandResult winnerHand, int potSize) {}
 
+    @Override
+    public void onTableSnapshotBroadcast(Map<String, Object> snapshotPayload) {
+
+    }
+
+    @Override
+    public void onTargetedTableSnapshot(String playerId, Map<String, Object> snapshotPayload) {
+
+    }
+
     private static class OpponentProfile {
         private int folds;
         private int calls;

@@ -15,6 +15,7 @@ import pokergame.server.network.PokerWebSocketServer;
 import pokergame.server.service.ServerAuthService;
 import pokergame.server.service.HttpRouteService;
 import pokergame.server.service.GameNetworkService;
+import pokergame.server.service.TokenValidationService;
 
 public class ServerApp {
     public static void main(String[] args) {
@@ -42,7 +43,7 @@ public class ServerApp {
         // If your custom PokerWebSocketServer needs the gameNetworkService callbacks,
         // you pass it here, otherwise you configure its internal ws pathways to call gameNetworkService.
 
-        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor);
+        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, new TokenValidationService());
         wsServer.start();
 
         System.out.println(">>> Server fully booted. Listening for HTTP on 8080, WebSockets on 8081 <<<");
