@@ -33,12 +33,13 @@ public class GameEventBroadcaster {
         observers.forEach(o -> o.onNewSeatOccupied(dto));
     }
 
-    public void broadcastAction(TableSeat actor, String type, int amt, GameState state, String handId) {
+    public HandActionDTO broadcastAction(TableSeat actor, String type, int amt, GameState state, String handId) {
         HandActionDTO dto = new HandActionDTO(
                 0, handId, actor.getUsername(), state.name(),
                 actionSequenceCounter++, type, amt
         );
         observers.forEach(o -> o.onPlayerAction(dto));
+        return dto;
     }
 
     public void broadcastTurnPrompt(TableSeat actor, int amountToCall) {

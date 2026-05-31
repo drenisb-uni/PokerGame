@@ -15,6 +15,7 @@ public class TableSeat {
     private int currentRoundBet;
     private int bankrollBase;
     private boolean bankrollTracked;
+    private boolean persistenceTracked;
 
     public TableSeat(PlayerProfileDTO profile, int buyInAmount) {
         this.profile = profile;
@@ -65,11 +66,19 @@ public class TableSeat {
         this.bankrollTracked = true;
     }
 
+    public void trackPersistence() {
+        this.persistenceTracked = true;
+    }
+
     public int getBankrollBase() {
         return bankrollBase;
     }
 
     public boolean isBankrollTracked() {
         return bankrollTracked;
+    }
+
+    public boolean isPersistenceTracked() {
+        return persistenceTracked;
     }
 }

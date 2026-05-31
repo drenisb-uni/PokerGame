@@ -2,6 +2,8 @@ package pokergame.server.domain.repository;
 
 import pokergame.domain.dto.*;
 
+import java.util.List;
+
 public interface IGameRepository {
 
     HandHistoryDTO findHandHistoryById(String id);
@@ -18,4 +20,7 @@ public interface IGameRepository {
 
     PokerTableDTO findPokerTableById(String id);
     void savePokerTable(PokerTableDTO pokerTable);
+
+    int findOrCreatePokerTable(String name, String hosterId);
+    List<PlayerHandResultDTO> findRecentHandsForPlayer(String playerId, int limit);
 }
