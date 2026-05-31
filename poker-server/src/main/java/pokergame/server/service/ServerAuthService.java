@@ -14,6 +14,7 @@ public class ServerAuthService {
     public ServerAuthService(IPlayerRepository playerRepository) {
         this.playerRepository = (SqlPlayerRepository) playerRepository;
     }
+
     public PlayerProfileDTO authenticatePlayer(String username, String rawPassword) {
         // 1. Guard against bad incoming HTTP JSON data
         if (username == null || rawPassword == null) {
@@ -63,5 +64,38 @@ public class ServerAuthService {
 
         System.out.println("Successfully registered new secure user profile: " + username);
         return true;
+    }
+
+    /**
+     * Resets a player's password, prints the plain text version to the console,
+     * and securely stores the hashed version inside the database.
+     */
+    public boolean resetPasswordToConsole(String username) {
+        // 1. Use your exact repository method to verify the user exists
+        var playerProfile = playerRepository.findProfileByUsername(username);
+        if (playerProfile == null) {
+            System.out.println("[Auth Server] Reset failed: User '" + username + "' does not exist.");
+            return false;
+        }
+
+        // 2. Generate an 8-character temporary password string
+        String temporaryPassword = UUID.randomUUID().toString().substring(0, 8) + "!1A";
+
+        // 3. SECURITY FIX: Hash it using your project's PasswordHasher utility so it can actually log in!
+        String newSecureHash = PasswordHasher.hashPassword(temporaryPassword);
+
+        // 4. Persistence: Update the database using the new contract method
+        boolean databaseUpdated = playerRepository.updatePasswordHash(username, newSecureHash);
+
+        if (databaseUpdated) {
+            System.out.println("=================================================");
+            System.out.println("[PASSWORD RESET EVENT]");
+            System.out.println("User: " + username);
+            System.out.println("Temporary Password: " + temporaryPassword);
+            System.out.println("=================================================");
+            return true;
+        }
+
+        return false;
     }
 }

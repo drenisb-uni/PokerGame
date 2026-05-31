@@ -40,6 +40,7 @@ public class ServerApp {
 
         httpApp.post("/api/auth/login", httpRouteService::handleLogin);
         httpApp.post("/api/auth/register", httpRouteService::handleRegister);
+        httpApp.post("/api/auth/forgot-password", httpRouteService::handleForgotPassword);
 
         PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, tokenValidationService, gameNetworkService);
         NetworkEventAdapter networkEventAdapter = new NetworkEventAdapter(wsServer);

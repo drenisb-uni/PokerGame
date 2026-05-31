@@ -7,4 +7,6 @@ public interface IPlayerRepository {
     PlayerProfileDTO findProfileByUsername(String username);
     void saveProfile(PlayerProfileDTO profile);
     void updateProfile(PlayerProfileDTO profile);
+
+    boolean updatePasswordHash(String username, String newHash);
 }
