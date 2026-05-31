@@ -3,6 +3,8 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
@@ -25,7 +27,8 @@
     </top>
 
     <center>
-        <VBox alignment="TOP_CENTER" spacing="24.0" maxWidth="720.0">
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" styleClass="profile-scroll-pane">
+        <VBox alignment="TOP_CENTER" spacing="24.0" maxWidth="960.0">
             <padding>
                 <Insets top="28.0" right="40.0" bottom="40.0" left="40.0" />
             </padding>
@@ -35,10 +38,20 @@
                 <Label fx:id="emailTitleLabel" text="email@example.com" styleClass="profile-subtitle" />
             </VBox>
 
-            <HBox alignment="CENTER" spacing="18.0">
+            <HBox alignment="CENTER" spacing="14.0">
                 <VBox alignment="CENTER" spacing="6.0" styleClass="profile-stat-box">
                     <Label text="Bankroll" styleClass="profile-stat-label" />
                     <Label fx:id="bankrollLabel" text="0" styleClass="profile-stat-value" />
+                </VBox>
+
+                <VBox alignment="CENTER" spacing="6.0" styleClass="profile-stat-box">
+                    <Label text="Net" styleClass="profile-stat-label" />
+                    <Label fx:id="netProfitLabel" text="0" styleClass="profile-stat-value" />
+                </VBox>
+
+                <VBox alignment="CENTER" spacing="6.0" styleClass="profile-stat-box">
+                    <Label text="Record" styleClass="profile-stat-label" />
+                    <Label fx:id="recordLabel" text="0W / 0L" styleClass="profile-stat-value-small" />
                 </VBox>
 
                 <VBox alignment="CENTER" spacing="6.0" styleClass="profile-stat-box">
@@ -66,6 +79,11 @@
                 <Label fx:id="bankrollValueLabel" text="-" styleClass="profile-detail-value" GridPane.rowIndex="3" GridPane.columnIndex="1" />
             </GridPane>
 
+            <VBox spacing="10.0" styleClass="profile-history-panel">
+                <Label text="Recent Games" styleClass="profile-section-title" />
+                <ListView fx:id="recentTablesList" minHeight="220.0" prefHeight="240.0" styleClass="profile-history-list" />
+            </VBox>
+
             <HBox alignment="CENTER" spacing="16.0">
                 <Button text="Return to Lobby" onAction="#handleBackToLobby" styleClass="primary-button" />
                 <Button text="Log Out" onAction="#handleLogout" styleClass="secondary-button" />
@@ -73,6 +91,7 @@
 
             <Label fx:id="statusLabel" text="" styleClass="profile-status-text" />
         </VBox>
+        </ScrollPane>
     </center>
 
 </BorderPane>

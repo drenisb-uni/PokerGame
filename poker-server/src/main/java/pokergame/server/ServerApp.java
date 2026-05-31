@@ -7,7 +7,9 @@ import io.javalin.json.JavalinJackson;
 import pokergame.server.bot.BotManager;
 
 import pokergame.server.dbinfrastructure.HikariDSProvider;
+import pokergame.server.dbinfrastructure.SqlGameRepository;
 import pokergame.server.dbinfrastructure.SqlPlayerRepository;
+import pokergame.server.domain.repository.IGameRepository;
 import pokergame.server.domain.repository.IPlayerRepository;
 import pokergame.server.engine.GameCommandProcessor;
 import pokergame.server.engine.GameEventBroadcaster;
@@ -23,17 +25,21 @@ public class ServerApp {
     public static void main(String[] args) {
         HikariDSProvider dsProvider = new HikariDSProvider();
         IPlayerRepository playerRepository = new SqlPlayerRepository(dsProvider);
+        IGameRepository gameRepository = new SqlGameRepository(dsProvider);
         ServerAuthService authService = new ServerAuthService(playerRepository);
 
-        PokerGameEngine gameEngine = new PokerGameEngine(playerRepository);
+        PokerGameEngine gameEngine = new PokerGameEngine(playerRepository, gameRepository);
         GameCommandProcessor commandProcessor = new GameCommandProcessor(gameEngine);
         BotManager botManager = new BotManager(commandProcessor, gameEngine);
 
+        // 2. Start the HTTP API Server for Secure Login/Registration (Port 8080)
+        ObjectMapper httpJsonMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         TokenValidationService tokenValidationService = new TokenValidationService();
         HttpRouteService httpRouteService = new HttpRouteService(authService, tokenValidationService);
         GameNetworkService gameNetworkService = new GameNetworkService(commandProcessor);
 
         Javalin httpApp = Javalin.create(config -> {
+            config.jsonMapper(new JavalinJackson(httpJsonMapper, false));
             config.bundledPlugins.enableCors(cors -> cors.addRule(it -> it.anyHost()));
             config.jsonMapper(new JavalinJackson());
         }).start(8080);
