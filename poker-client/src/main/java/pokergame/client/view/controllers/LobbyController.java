@@ -1,5 +1,6 @@
 package pokergame.client.view.controllers;
 
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -34,14 +35,7 @@ public class LobbyController {
 
     @FXML
     public void handlePlayNow() {
-        int bankroll = getBankroll();
-        if (bankroll >= DANIEL_TABLE_BUY_IN) {
-            joinGameTable(DANIEL_TABLE_BUY_IN);
-        } else if (bankroll >= LOCAL_TABLE_BUY_IN) {
-            joinGameTable(LOCAL_TABLE_BUY_IN);
-        } else {
-            showNotEnoughMoney(LOCAL_TABLE_BUY_IN);
-        }
+        SceneManager.switchScene("BotConfiguration.fxml");
     }
 
     @FXML
@@ -114,5 +108,9 @@ public class LobbyController {
 
     private String formatMoney(int amount) {
         return String.format("%,d", amount);
+    }
+
+    public void handleHostTable(ActionEvent actionEvent) {
+        SceneManager.switchScene("MultiplayerConfiguration.fxml");
     }
 }

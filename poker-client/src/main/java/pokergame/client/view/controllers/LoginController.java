@@ -101,11 +101,6 @@ public class LoginController {
                 });
     }
 
-    @FXML
-    public void switchToSignup(MouseEvent event) {
-        SceneManager.switchScene("Signup.fxml");
-    }
-
     private void showError(Label errorLabel, String message) {
         errorLabel.setText(message);
         errorLabel.setVisible(true);
