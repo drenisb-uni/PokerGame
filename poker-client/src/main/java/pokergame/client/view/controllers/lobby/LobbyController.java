@@ -1,6 +1,5 @@
-package pokergame.client.view.controllers;
+package pokergame.client.view.controllers.lobby;
 
-import com.fasterxml.jackson.core.ObjectCodec;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -23,7 +22,6 @@ import pokergame.client.view.SceneManager;
 import pokergame.domain.dto.PlayerProfileDTO;
 
 import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 
 import org.json.JSONObject;
 
@@ -118,10 +116,6 @@ public class LobbyController {
         System.out.println("[Lobby] Starting 'Play Now' sequence with " + numBots + " bots...");
 
         try {
-            // --- APPROACH A: The "All-in-One" Payload (Highly Recommended) ---
-            // If you can easily edit your server code, it is much safer to send ONE setup
-            // command and let the server handle the sequential logic internally.
-
             JSONObject request = new JSONObject();
             request.put("action", "CREATE_TABLE"); // or "PLAY_NOW"
             request.put("buy-in", 1000);

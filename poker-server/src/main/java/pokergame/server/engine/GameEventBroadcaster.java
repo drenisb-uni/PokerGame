@@ -7,10 +7,8 @@ import pokergame.engine.GameState;
 import pokergame.engine.IGameEventListener;
 import pokergame.server.domain.model.TableSeat;
 import pokergame.domain.rules.HandResult;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class GameEventBroadcaster {
@@ -70,8 +68,8 @@ public class GameEventBroadcaster {
         boolean revealAllCards = gameEngine.getCurrentState() == GameState.HAND_OVER;
         Map<String, Object> snapshot = buildSnapshotPayload(null, revealAllCards);
 
-        // Pass the generic snapshot to your network listeners
-        observers.forEach(o -> o.onTableSnapshotBroadcast(snapshot));
+        String currentTableId = gameEngine.getTableId();
+        observers.forEach(o -> o.onTableSnapshotBroadcast(currentTableId, snapshot));
     }
 
     /**
@@ -154,5 +152,9 @@ public class GameEventBroadcaster {
                 0,
                 seat.isFolded()
         );
+    }
+
+    public List<IGameEventListener> getObservers() {
+        return observers;
     }
 }

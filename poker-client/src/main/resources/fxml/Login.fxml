@@ -12,7 +12,7 @@
 
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.image.Image?>
-<StackPane fx:controller="pokergame.client.view.controllers.LoginController"
+<StackPane fx:controller="pokergame.client.view.controllers.lobby.LoginController"
            prefHeight="639.0" prefWidth="1366.0"
            stylesheets="@css/style.css" styleClass="root-pane"
            xmlns="http://javafx.com/javafx/21"

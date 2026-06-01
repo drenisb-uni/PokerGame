@@ -12,6 +12,7 @@ import pokergame.server.domain.repository.IPlayerRepository;
 import pokergame.server.engine.GameCommandProcessor;
 import pokergame.server.engine.GameEventBroadcaster;
 import pokergame.server.engine.PokerGameEngine;
+import pokergame.server.engine.actor.TableActor;
 import pokergame.server.network.NetworkEventAdapter;
 import pokergame.server.network.PokerWebSocketServer;
 import pokergame.server.service.*;
@@ -22,14 +23,10 @@ public class ServerApp {
         IPlayerRepository playerRepository = new SqlPlayerRepository(dsProvider);
         ServerAuthService authService = new ServerAuthService(playerRepository);
 
-        PokerGameEngine gameEngine = new PokerGameEngine(playerRepository);
-        GameCommandProcessor commandProcessor = new GameCommandProcessor(gameEngine);
-        BotManager botManager = new BotManager(commandProcessor, gameEngine);
-        LobbyManager lobbyManager = new LobbyManager();
+        LobbyManager lobbyManager = new LobbyManager(playerRepository);
 
         TokenValidationService tokenValidationService = new TokenValidationService();
         HttpRouteService httpRouteService = new HttpRouteService(authService, tokenValidationService);
-        GameNetworkService gameNetworkService = new GameNetworkService(commandProcessor);
 
         Javalin httpApp = Javalin.create(config -> {
             config.bundledPlugins.enableCors(cors -> cors.addRule(it -> it.anyHost()));
@@ -39,12 +36,8 @@ public class ServerApp {
         httpApp.post("/api/auth/login", httpRouteService::handleLogin);
         httpApp.post("/api/auth/register", httpRouteService::handleRegister);
 
-        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, commandProcessor, tokenValidationService, gameNetworkService, lobbyManager);
+        PokerWebSocketServer wsServer = new PokerWebSocketServer(8081, tokenValidationService, lobbyManager);
         lobbyManager.setWebSocketServer(wsServer);
-        NetworkEventAdapter networkEventAdapter = new NetworkEventAdapter(wsServer);
-
-        gameEngine.addObserver(botManager);
-        gameEngine.addObserver(networkEventAdapter);
 
         wsServer.start();
 

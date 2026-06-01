@@ -1,4 +1,4 @@
-package pokergame.client.view.controllers;
+package pokergame.client.view.controllers.table;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.ParallelTransition;

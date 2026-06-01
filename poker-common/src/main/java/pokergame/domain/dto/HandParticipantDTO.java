@@ -10,6 +10,19 @@ public record HandParticipantDTO(
         int netProfit,
         boolean isWinner
 ) {
+    public HandParticipantDTO(String username, int chips) {
+        this(
+                null,       // handId
+                username,   // playerUsername
+                -1,         // seatIndex (placeholder flag)
+                null,       // holeCards
+                chips,      // startChips -> Read by PlayerSeatController.setup()
+                chips,      // endChips
+                0,          // netProfit
+                false       // isWinner
+        );
+    }
+
     public HandParticipantDTO sanitizeForNetwork(boolean isShowdown) {
         if (isShowdown) {
             return this;

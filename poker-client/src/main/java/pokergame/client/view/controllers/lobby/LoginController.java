@@ -1,4 +1,4 @@
-package pokergame.client.view.controllers;
+package pokergame.client.view.controllers.lobby;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -6,12 +6,10 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
-import javafx.scene.input.MouseEvent;
 import pokergame.GameContext;
 import pokergame.client.network.AuthNetworkClient;
 import pokergame.client.network.PokerWebSocketClient;
 import pokergame.client.view.SceneManager;
-import pokergame.domain.dto.PlayerProfileDTO;
 
 import java.util.concurrent.CompletableFuture;
 

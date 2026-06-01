@@ -9,4 +9,4 @@ public record PlayerProfileDTO(
         String passwordHash,
         int totalBankroll,
         LocalDateTime createdAt
-) {}
+) { }

@@ -5,7 +5,7 @@
 <?import javafx.scene.layout.*?>
 
 
-<StackPane xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="pokergame.client.view.controllers.LobbyController">
+<StackPane xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="pokergame.client.view.controllers.lobby.LobbyController">
    <children>
       <BorderPane prefHeight="639.0" prefWidth="1366.0" styleClass="root-pane" stylesheets="@css/style.css">
       

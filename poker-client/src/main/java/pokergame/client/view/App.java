@@ -2,9 +2,7 @@ package pokergame.client.view;
 
 import javafx.application.Application;
 import javafx.stage.Stage;
-import pokergame.GameContext;
 import pokergame.client.network.WebSocketClientAPI;
-import pokergame.client.view.controllers.GameController;
 
 import java.net.URI;
 import java.net.http.HttpClient;

@@ -1,4 +1,4 @@
-package pokergame.client.view.controllers;
+package pokergame.client.view.controllers.lobby;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;

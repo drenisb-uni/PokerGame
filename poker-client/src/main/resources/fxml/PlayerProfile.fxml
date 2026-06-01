@@ -10,7 +10,7 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane fx:controller="pokergame.client.view.controllers.PlayerProfileController"
+<BorderPane fx:controller="pokergame.client.view.controllers.lobby.PlayerProfileController"
             prefHeight="760.0" prefWidth="1200.0"
             stylesheets="@css/style.css" styleClass="root-pane"
             xmlns="http://javafx.com/javafx/21"

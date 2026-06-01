@@ -3,10 +3,13 @@ package pokergame;
 
 import pokergame.domain.dto.PlayerProfileDTO;
 
+import java.util.Map;
+
 public class GameContext {
     private static PlayerProfileDTO userProfile;
     private static String jwtToken;
     private static String currentTableId = null;
+    private static Map<String, Object> lastTableSnapshot;
 
 
     public static void setPlayerProfile(PlayerProfileDTO userProfile) {
@@ -16,6 +19,7 @@ public class GameContext {
     public static PlayerProfileDTO getPlayerProfile() {
         return userProfile;
     }
+
     public static String getJwtToken() { return jwtToken; }
     public static void setJwtToken(String token) { jwtToken = token; }
 
@@ -27,5 +31,12 @@ public class GameContext {
     }
     public static void clearCurrentTable() {
         currentTableId = null;
+    }
+
+    public static void setLastTableSnapshot(Map<String, Object> snapshot) {
+        lastTableSnapshot = snapshot;
+    }
+    public static Map<String, Object> getLastTableSnapshot() {
+        return lastTableSnapshot;
     }
 }

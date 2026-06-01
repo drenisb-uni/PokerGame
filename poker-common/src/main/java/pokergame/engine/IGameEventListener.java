@@ -17,6 +17,6 @@ public interface IGameEventListener {
     void onPlayerTurn(String username, int amountToCall);
     void onPlayerAction(HandActionDTO action);
     void onHandResult(List<String> winnerUsernames, HandResult winnerHand, int potSize);
-    void onTableSnapshotBroadcast(Map<String, Object> snapshotPayload);
+    void onTableSnapshotBroadcast(String tableId, Map<String, Object> snapshotPayload);
     void onTargetedTableSnapshot(String playerId, Map<String, Object> snapshotPayload);
 }

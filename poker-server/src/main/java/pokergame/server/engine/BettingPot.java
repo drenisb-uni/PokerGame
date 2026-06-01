@@ -69,15 +69,16 @@ public class BettingPot {
         decrementPlayersToAct();
     }
 
-    public void handleRaise(TableSeat actor, int raiseAmount, int activePlayersCount) {
-        int raiseTotalAmount = raiseAmount + actor.getCurrentRoundBet();
-        actor.bet(raiseAmount);
-        actor.setRoundBet(raiseTotalAmount);
-        potSize += raiseAmount;
-        highestBetThisRound = raiseTotalAmount;
+    public void handleRaise(TableSeat actor, int raiseToTarget, int activePlayersCount) {
+        int additionalChipsToDeduct = raiseToTarget - actor.getCurrentRoundBet();
 
-        // Reset the loop tracker: everyone else must respond to this raise
-        playersToAct = activePlayersCount - 1;
+        actor.bet(additionalChipsToDeduct);
+        actor.setRoundBet(raiseToTarget); // Their new total round contribution
+
+        this.potSize += additionalChipsToDeduct;
+        this.highestBetThisRound = raiseToTarget; // The new ceiling everyone must match
+
+        this.playersToAct = activePlayersCount - 1;
     }
 
     public boolean isRoundComplete(TableManager tableManager) {

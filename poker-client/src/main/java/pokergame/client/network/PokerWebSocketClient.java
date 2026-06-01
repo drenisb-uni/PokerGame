@@ -13,6 +13,7 @@ import pokergame.domain.dto.GameMessageDTO;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
 
 public class PokerWebSocketClient extends WebSocketClient {
 
@@ -97,6 +98,20 @@ public class PokerWebSocketClient extends WebSocketClient {
                     });
                 }
             }
+
+            if ("TABLE_SNAPSHOT".equals(actionType)) {
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> snapshotData = (Map<String, Object>) envelope.payload();
+                GameContext.setLastTableSnapshot(snapshotData);
+
+                if (GameContext.getCurrentTableId() == null) {
+                    JsonNode payloadNode = mapper.valueToTree(rawPayload);
+                    if (payloadNode != null && payloadNode.has("tableId"))
+                        GameContext.setCurrentTableId(payloadNode.get("tableId").asText());
+                }
+            }
+
 
         } catch (Exception e) {
             System.err.println("[WebSocket] ❌ Failed to process incoming server message: " + e.getMessage());
