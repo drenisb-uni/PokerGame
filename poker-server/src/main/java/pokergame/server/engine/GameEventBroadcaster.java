@@ -37,7 +37,7 @@ public class GameEventBroadcaster {
         HandParticipantDTO dto = new HandParticipantDTO(
                 handId == null ? "WAITING_FOR_HAND" : handId,
                 seat.getUsername(), seat.getSeatIndex(), "HIDDEN",
-                seat.getChipsOnTable(), seat.getChipsOnTable(), 0, false
+                seat.getChipsOnTable(), seat.getChipsOnTable(), 0, null, false
         );
         observers.forEach(o -> o.onNewSeatOccupied(dto));
     }
@@ -80,7 +80,9 @@ public class GameEventBroadcaster {
         if (gameEngine == null) return;
 
         Map<String, Object> snapshot = buildSnapshotPayload(playerId, false);
-        observers.forEach(o -> o.onTargetedTableSnapshot(playerId, snapshot));
+
+        String currentTableId = gameEngine.getTableId();
+        observers.forEach(o -> o.onTargetedTableSnapshot(currentTableId, playerId, snapshot));
     }
 
     /**
@@ -130,6 +132,7 @@ public class GameEventBroadcaster {
                 0,
                 0,
                 0,
+                null,
                 false
         );
     }
@@ -140,7 +143,7 @@ public class GameEventBroadcaster {
      */
     private HandParticipantDTO mapSeatToSafeDTO(TableSeat seat, String viewerUsername, boolean revealAllCards) {
         boolean isViewer = seat.getUsername().equals(viewerUsername);
-        String cardVisibility = (isViewer || revealAllCards) ? "VISIBLE" : "HIDDEN";
+        String cardVisibility = (isViewer || revealAllCards) ? seat.getHoleCards().toString() : "HIDDEN";
 
         return new HandParticipantDTO(
                 "CURRENT_HAND",
@@ -150,6 +153,7 @@ public class GameEventBroadcaster {
                 seat.getChipsOnTable(),
                 seat.getCurrentRoundBet(),
                 0,
+                null,
                 seat.isFolded()
         );
     }

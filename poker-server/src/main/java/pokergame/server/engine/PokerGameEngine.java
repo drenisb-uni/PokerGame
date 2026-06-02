@@ -248,7 +248,7 @@ public class PokerGameEngine implements IPublicActionAPI {
             synchronized (this) {
                 startScheduledHandIfReady();
             }
-        }, 8, TimeUnit.SECONDS);
+        }, 15, TimeUnit.SECONDS);
     }
 
     private void startScheduledHandIfReady() {
@@ -499,6 +499,7 @@ public class PokerGameEngine implements IPublicActionAPI {
                         seat.getChipsOnTable(),
                         seat.getChipsOnTable(),
                         0,
+                        null,
                         false
                 ))
                 .toList();

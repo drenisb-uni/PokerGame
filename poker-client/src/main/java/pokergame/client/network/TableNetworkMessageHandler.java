@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.application.Platform;
 import pokergame.GameContext;
+import pokergame.client.utils.CardParser;
 import pokergame.client.utils.EventBus;
 import pokergame.client.view.components.GameTableAnimationEngine;
 import pokergame.client.view.controllers.table.GameController;
@@ -76,21 +77,20 @@ public class TableNetworkMessageHandler {
                     String phase = payload.get("state").asText();
                     Platform.runLater(() -> {
                         controller.setGameStatus("Round: " + phase);
-                        controller.updateCommunityCards();
 
                         // Disable admin actions like adding bots if a hand is mid-progress
                         boolean isHandInProgress = !"WAITING_FOR_PLAYERS".equals(phase) && !"SHOWDOWN".equals(phase);
                         controller.setAdminControlsDisabled(isHandInProgress);
                     });
                 }
-                case "COMMUNITY_CARDS_DEALT" -> {
-//                    JsonNode cardsArray = payload.get("cards"); // Assumes server wraps them in a "cards" array
-//                    List<Card> receivedCards = parseCardsFromJson(cardsArray);
-//
-//                    Platform.runLater(() -> {
-//                        // Now you are actually passing the server's cards to your controller!
-//                        controller.updateCommunityCards(receivedCards);
-//                    });
+                case "COMMUNITY_CARDS" -> {
+                    JsonNode cardsArray = payload.get("cards"); // Assumes server wraps them in a "cards" array
+                    List<Card> receivedCards = CardParser.parseCardsFromJson(cardsArray);
+                    System.out.println("Community Cards recieved " + cardsArray);
+                    Platform.runLater(() -> {
+                        // Now you are actually passing the server's cards to your controller!
+                        controller.updateCommunityCards(receivedCards);
+                    });
                 }
             }
         } catch (Exception e) {

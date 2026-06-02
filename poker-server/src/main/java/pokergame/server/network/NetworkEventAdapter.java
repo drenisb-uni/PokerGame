@@ -25,20 +25,15 @@ public class NetworkEventAdapter implements IGameEventListener {
 
     @Override
     public void onTableSnapshotBroadcast(String tableID, Map<String, Object> snapshotPayload) {
-        // 1. Inject the tableID into the payload so the client-side guard can verify it
         snapshotPayload.put("tableId", tableID);
-
-        // 2. Package the message
         GameMessageDTO message = new GameMessageDTO("TABLE_SNAPSHOT", snapshotPayload);
-
-        // 3. route ONLY to this specific table! (We will write this method next)
         webSocketServer.broadcastToTable(tableID, message);
     }
 
     @Override
-    public void onTargetedTableSnapshot(String playerId, Map<String, Object> snapshotPayload) {
+    public void onTargetedTableSnapshot(String tableID, String playerId, Map<String, Object> snapshotPayload) {
         GameMessageDTO message = new GameMessageDTO("TARGETED_SNAPSHOT", snapshotPayload);
-        webSocketServer.sendMessageToPlayer(playerId, message);
+        webSocketServer.sendMessageToPlayer(tableID, playerId, message);
     }
 
     @Override

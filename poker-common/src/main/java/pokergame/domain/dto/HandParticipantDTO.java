@@ -8,9 +8,10 @@ public record HandParticipantDTO(
         int startChips,
         int endChips,
         int netProfit,
+        String cardsToken,
         boolean isWinner
 ) {
-    public HandParticipantDTO(String username, int chips) {
+    public HandParticipantDTO(String username, int chips, String token) {
         this(
                 null,       // handId
                 username,   // playerUsername
@@ -19,6 +20,7 @@ public record HandParticipantDTO(
                 chips,      // startChips -> Read by PlayerSeatController.setup()
                 chips,      // endChips
                 0,          // netProfit
+                token,      // cardToken
                 false       // isWinner
         );
     }
@@ -36,6 +38,7 @@ public record HandParticipantDTO(
                 this.startChips,
                 this.endChips,
                 this.netProfit,
+                this.cardsToken,
                 this.isWinner
         );
     }

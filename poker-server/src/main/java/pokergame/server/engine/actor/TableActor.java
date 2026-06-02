@@ -79,6 +79,7 @@ public class TableActor implements Runnable {
             // Safely seat the player now that the data is loaded without blocking the engine
             if (dbMsg.profile() != null) {
                 gameEngine.getTableManager().sitRealPlayer(dbMsg.profile(), dbMsg.buyIn());
+                gameEngine.getBroadcaster().sendTargetedSnapshot(dbMsg.profile().id());
                 gameEngine.getBroadcaster().broadcastTableSnapshot();
             }
         } else if (message instanceof PlayerDisconnectedMessage discrete) {

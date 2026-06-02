@@ -8,11 +8,8 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import pokergame.domain.dto.GameMessageDTO;
-import pokergame.engine.commands.*;
-import pokergame.server.engine.GameCommandProcessor;
 import pokergame.server.engine.actor.TableActor;
 import pokergame.server.engine.actor.messages.PlayerActionMessage;
-import pokergame.server.service.GameNetworkService;
 import pokergame.server.service.LobbyManager;
 import pokergame.server.service.TokenValidationService;
 
@@ -116,7 +113,7 @@ public class PokerWebSocketServer extends WebSocketServer {
 
                 // Confirm room creation to host with their 6-letter code
                 GameMessageDTO response = new GameMessageDTO("TABLE_CREATED", Map.of("tableId", newTableId));
-                sendMessageToPlayer(playerId, response);
+                sendMessageToPlayer(newTableId, playerId, response);
 
                 // Grab the running Actor boundary for this specific table
                 TableActor tableActor = lobbyManager.getActorForTable(newTableId);
@@ -151,7 +148,7 @@ public class PokerWebSocketServer extends WebSocketServer {
 
                     // Confirm join approval back to client socket
                     GameMessageDTO response = new GameMessageDTO("TABLE_JOINED", Map.of("tableId", targetTableId));
-                    sendMessageToPlayer(playerId, response);
+                    sendMessageToPlayer(targetTableId, playerId, response);
 
                     // Safe Async Ingestion: Drop message into the targeted room Actor Mailbox
                     tableActor.tell(new PlayerActionMessage(playerId, "JOIN_TABLE", buyInAmount));
@@ -235,6 +232,7 @@ public class PokerWebSocketServer extends WebSocketServer {
                     conn.send(jsonString);
                 }
             }
+
         } catch (Exception e) {
             System.err.println("[WebSocket] FATAL: Broadcast serialization failed: " + e.getMessage());
             e.printStackTrace();
@@ -245,38 +243,58 @@ public class PokerWebSocketServer extends WebSocketServer {
      * Sends a properly serialized JSON message to a SPECIFIC player.
      * Use this for private messages like hole cards or error notifications.
      */
-    public void sendMessageToPlayer(String playerId, GameMessageDTO message) {
+    public void sendMessageToPlayer(String targetTableId, String playerId, GameMessageDTO message) {
+        if (targetTableId == null || targetTableId.isBlank()) {
+            System.err.println("[WebSocket Broadcaster] Aborted targeted message: targetTableId is null or empty.");
+            return;
+        }
         try {
             ClientConnection client = sessionManager.getConnectionByPlayerId(playerId);
-            if (client != null && client.getSocket().isOpen()) {
 
-                // Serialize specifically for this player
-                String jsonString = objectMapper.writeValueAsString(message);
-                client.getSocket().send(jsonString);
+            if (client != null && client.getSocket() != null && client.getSocket().isOpen()) {
+                Object attachment = client.getSocket().getAttachment();
+                String playerTableId = (attachment instanceof String) ? (String) attachment : null;
 
+                if (targetTableId.equals(playerTableId)) {
+                    String jsonString = objectMapper.writeValueAsString(message);
+                    client.getSocket().send(jsonString);
+
+                } else {
+                    System.out.println("[WebSocket] Dropped targeted message for " + playerId + " (Player is not at table " + targetTableId + ")");
+                }
             } else {
                 System.out.println("[WebSocket] Dropped message for " + playerId + " (Not connected)");
             }
         } catch (Exception e) {
-            System.err.println("[WebSocket] FATAL: Targeted message serialization failed for " + playerId + ": " + e.getMessage());
+            System.err.println("[WebSocket] FATAL: Targeted message serialization/sending failed for " + playerId + ": " + e.getMessage());
             e.printStackTrace();
         }
     }
 
     public void broadcastToTable(String targetTableId, GameMessageDTO message) {
+        if (targetTableId == null || targetTableId.isBlank()) {
+            System.err.println("[WebSocket Broadcaster] Aborted broadcast: targetTableId is null or empty.");
+            return;
+        }
+
         try {
             String jsonMessage = objectMapper.writeValueAsString(message);
 
             for (org.java_websocket.WebSocket conn : getConnections()) {
 
-                String playerTableId = conn.getAttachment();
+                if (conn != null && conn.isOpen()) {
 
-                if (targetTableId.equals(playerTableId)) {
-                    conn.send(jsonMessage);
+                    Object attachment = conn.getAttachment();
+                    String playerTableId = (attachment instanceof String) ? (String) attachment : null;
+
+                    if (targetTableId.equals(playerTableId)) {
+                        conn.send(jsonMessage);
+                    }
                 }
             }
         } catch (Exception e) {
-            System.err.println("[WebSocket Broadcaster] Failed to serialize message: " + e.getMessage());
+            System.err.println("[WebSocket Broadcaster] Failed to serialize or broadcast message: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
