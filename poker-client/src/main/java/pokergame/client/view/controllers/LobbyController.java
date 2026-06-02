@@ -35,7 +35,7 @@ public class LobbyController {
 
     @FXML
     public void handlePlayNow() {
-        SceneManager.switchScene("BotConfiguration.fxml");
+        joinGameTable(1000);
     }
 
     @FXML

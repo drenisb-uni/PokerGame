@@ -21,7 +21,7 @@
         <VBox alignment="CENTER" spacing="15.0">
             <Button onAction="#handlePlayNow" styleClass="primary-button, massive-btn" text="Play Bots" />
             <Label style="-fx-text-fill: #aaaaaa; -fx-font-size: 14px;" text="Start playing right away" />
-         <Button layoutX="582.0" layoutY="60.0" onAction="#handleHostTable" style="-fx-text-fill: whiut;" text="Host Table">
+         <Button layoutX="582.0" layoutY="60.0" onAction="#handleHostTable" text="Host Table">
             <styleClass>
                <String fx:value="massive-btn" />
                <String fx:value="all-in-btn" />
