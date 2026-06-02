@@ -124,11 +124,13 @@ public class GameController {
             Map<String, Object> data = entry.getValue();
             String username = (String) data.get("playerUsername");
 
+            // Safe evaluation of player stacks
             int startChips = data.get("startChips") != null ? (int) data.get("startChips") : 1000;
             int endChips = data.get("endChips") != null ? (int) data.get("endChips") : 0;
-            int workingStack = (endChips > 0) ? endChips : startChips;
 
-            String holeCards = (String) data.get("holeCards");
+            // FIX: Extract BOTH parameters uniquely from the JSON map data
+            String currentAction = (String) data.get("lastAction");
+            String holeCardsToken = (String) data.get("holeCards");
 
             PlayerSeatController controller;
 
@@ -141,29 +143,40 @@ public class GameController {
                     seatControllers.put(index, controller);
                     seatNodes.put(index, seatNode);
 
-                    // Pass the holeCards token cleanly into the DTO
-                    HandParticipantDTO initialDto = new HandParticipantDTO(username, workingStack, holeCards);
+                    // FIX: Pass the holeCards token cleanly into the DTO allocation slot
+                    HandParticipantDTO initialDto = new HandParticipantDTO(username, startChips, holeCardsToken);
                     controller.updateFromSnapshot(initialDto, username);
+
+                    // Track actions visually if present
+                    if (currentAction != null && !currentAction.isBlank()) {
+                        controller.restoreActionVisual(currentAction);
+                    }
 
                     GameTableAnimationEngine.playSeatEntryAnimation(controller);
 
                 } catch (IOException e) {
                     System.err.println("[UI Error] Failed to inflate player seat template: " + e.getMessage());
+                    continue;
                 }
             } else {
                 controller = seatControllers.get(index);
 
+                // Check for deltas in chip counts to trigger the dynamic pulse animations
                 int previousChips = controller.getCurrentChips();
-                if (previousChips != 0 && previousChips != workingStack) {
-                    controller.updateChips(workingStack);
-                    GameTableAnimationEngine.playChipPulse(chipsInfoLabel, workingStack > previousChips);
+                if (previousChips != 0 && previousChips != startChips) {
+                    controller.updateChips(startChips);
+                    GameTableAnimationEngine.playChipPulse(chipsInfoLabel, startChips > previousChips);
                 } else {
-                    controller.updateChips(workingStack);
+                    controller.updateChips(startChips);
                 }
 
-                // Pass the holeCards token cleanly into the DTO
-                HandParticipantDTO syncDto = new HandParticipantDTO(username, workingStack, holeCards);
+                // FIX: Pass the actual holeCards token here for standard view refreshes
+                HandParticipantDTO syncDto = new HandParticipantDTO(username, startChips, holeCardsToken);
                 controller.updateFromSnapshot(syncDto, username);
+
+                if (currentAction != null && !currentAction.isBlank()) {
+                    controller.restoreActionVisual(currentAction);
+                }
             }
         }
 

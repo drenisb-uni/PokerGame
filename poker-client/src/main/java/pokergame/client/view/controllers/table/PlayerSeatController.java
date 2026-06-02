@@ -7,8 +7,11 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import pokergame.GameContext;
 import pokergame.domain.dto.HandParticipantDTO;
 import pokergame.domain.model.Card;
+
+import java.util.Objects;
 
 public class PlayerSeatController {
 
@@ -20,26 +23,105 @@ public class PlayerSeatController {
     @FXML private ImageView holeCard1;
     @FXML private ImageView holeCard2;
 
+    private String activeCardToken = null;
+
     private static final String CARD_BACK = "/images/BACK.png";
     private int currentChips;
     private String currentUsername;
-
-    /**
-     * Complete synchronization method driven directly from active table states.
-     */
     public void updateFromSnapshot(HandParticipantDTO seat, String clientUsername) {
         this.currentUsername = seat.playerUsername();
         usernameLabel.setText(currentUsername);
+
+        // Synchronize chip stacks
         updateChips(seat.startChips());
 
-        // FIX: Evaluate the holeCards token to render visuals instead of actions
+        // FIX: Decouple card logic from action labels and route string tokens into the UI rendering engine
         String cardsToken = seat.holeCards();
-        System.out.println("_______________CARDSTOKEN - " + cardsToken);
-        if (cardsToken == null || "HIDDEN".equals(cardsToken)) {
+
+
+        if (cardsToken == null || cardsToken.isBlank() || cardsToken.equals("[]")) {
+            this.activeCardToken = null;
+            clearCards();
+        } else if (cardsToken.equalsIgnoreCase("HIDDEN")) {
+            if (clientUsername.equals(GameContext.getPlayerProfile().username()) && this.activeCardToken != null) {
+                return;
+            }
+            this.activeCardToken = null;
             showCardBacks();
-        } else if (cardsToken.contains("-")) {
-            renderFaceUpCards(cardsToken);
+        } else {
+            this.activeCardToken = cardsToken;
+            revealCardsFromToken(cardsToken);
         }
+    }
+
+    private void revealCardsFromToken(String token) {
+        try {
+            String[] cards = token.split(",");
+            if (cards.length == 2) {
+                String path1 = "/images/" + cards[0].trim() + ".png";
+                String path2 = "/images/" + cards[1].trim() + ".png";
+
+                Image img1 = new Image(getClass().getResource(path1).toExternalForm(), 70, 95, true, true);
+                Image img2 = new Image(getClass().getResource(path2).toExternalForm(), 70, 95, true, true);
+
+                holeCard1.setImage(img1);
+                holeCard2.setImage(img2);
+                javafx.application.Platform.runLater(() -> {
+                    holeCard1.setVisible(true);
+                    holeCard2.setVisible(true);
+                    cardsBox.setOpacity(1);
+                    cardsBox.setTranslateY(0);
+                    cardsBox.setRotate(0);
+
+                    // Debug log to confirm the image actually loaded pixels
+                    System.out.println("[UI Debug] Rendered cards: " + token + " | Img1 Width: " + img1.getWidth());
+                });
+
+            }
+        } catch (Exception e) {
+            System.err.println("[UI Card Error] Could not load face card assets for: " + token);
+            showCardBacks(); // Fallback UI
+        }
+    }
+
+    public void showCardBacks() {
+        try {
+            Image backImage = new Image(getClass().getResource(CARD_BACK).toExternalForm(), 70, 95, true, true);
+
+            javafx.application.Platform.runLater(() -> {
+                holeCard1.setImage(backImage);
+                holeCard2.setImage(backImage);
+                holeCard1.setVisible(true);
+                holeCard2.setVisible(true);
+                cardsBox.setOpacity(1.0);
+                cardsBox.setTranslateY(0);
+                cardsBox.setVisible(true);
+            });
+        } catch (Exception e) {
+            System.err.println("[UI Error] Failed to render card back textures: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Converts shorthand representation structures like "A-S" to filesystem paths like "/images/14-S.png"
+     */
+    private String parseTokenToPath(String singleCardToken) {
+        // Splits "A-S" into components parts[0]="A", parts[1]="S"
+        String[] parts = singleCardToken.split("-");
+        if (parts.length != 2) return CARD_BACK;
+
+        String rank = parts[0].trim().toUpperCase();
+        String suit = parts[1].trim().toUpperCase();
+
+        // Map alphabetic high-card faces back to numeric value formats
+        switch (rank) {
+            case "A"  -> rank = "14";
+            case "K"  -> rank = "13";
+            case "Q"  -> rank = "12";
+            case "J"  -> rank = "11";
+        }
+
+        return "/images/" + rank + "-" + suit + ".png";
     }
 
     public void updateChips(int amount) {
@@ -75,13 +157,6 @@ public class PlayerSeatController {
     public void revealCards(Card c1, Card c2) {
         holeCard1.setImage(new Image(getClass().getResource(getImagePath(c1)).toExternalForm()));
         holeCard2.setImage(new Image(getClass().getResource(getImagePath(c2)).toExternalForm()));
-    }
-
-    public void showCardBacks() {
-        Image back = new Image(getClass().getResource(CARD_BACK).toExternalForm());
-        holeCard1.setImage(back);
-        holeCard2.setImage(back);
-        resetCardsVisuals();
     }
 
     public void clearCards() {
@@ -136,7 +211,7 @@ public class PlayerSeatController {
 
     private void renderFaceUpCards(String cardTokenString) {
         try {
-            String[] tokens = cardTokenString.split(",");
+            String[] tokens = cardTokenString.split("-");
             if (tokens.length == 2) {
                 Card c1 = parseTokenToCard(tokens[0]);
                 Card c2 = parseTokenToCard(tokens[1]);

@@ -66,20 +66,37 @@ public class GameEventBroadcaster {
         if (gameEngine == null) return;
 
         boolean revealAllCards = gameEngine.getCurrentState() == GameState.HAND_OVER;
-        Map<String, Object> snapshot = buildSnapshotPayload(null, revealAllCards);
-
         String currentTableId = gameEngine.getTableId();
-        observers.forEach(o -> o.onTableSnapshotBroadcast(currentTableId, snapshot));
+
+        // 1. Loop through all physical seats to give active human players their customized view
+        for (TableSeat seat : gameEngine.getTableManager().getSeats()) {
+            if (seat == null || seat.getProfile() == null) continue;
+
+            // Skip bots as they don't have networking sockets
+            if (seat.getProfile().username().startsWith("Bot_")) continue;
+
+            String pId = seat.getProfile().id();
+            String uName = seat.getProfile().username();
+
+            // Build a snapshot where ONLY this specific username gets their real cards exposed
+            Map<String, Object> personalSnapshot = buildSnapshotPayload(uName, revealAllCards);
+            observers.forEach(o -> o.onTargetedTableSnapshot(currentTableId, pId, personalSnapshot));
+        }
+
+        // 2. (Optional) Broadcast a fully blinded snapshot for true table spectators/observers
+        Map<String, Object> spectatorSnapshot = buildSnapshotPayload(null, revealAllCards);
+        observers.forEach(o -> o.onTableSnapshotBroadcast(currentTableId, spectatorSnapshot));
     }
 
     /**
      * Sends a snapshot strictly to ONE player.
      * Crucial for letting a player see their own hidden hole cards upon reconnecting.
      */
-    public void sendTargetedSnapshot(String playerId) {
+    public void sendTargetedSnapshot(String playerId, String username) {
         if (gameEngine == null) return;
 
-        Map<String, Object> snapshot = buildSnapshotPayload(playerId, false);
+        // Fix: Pass the username here so the privacy check matches properly
+        Map<String, Object> snapshot = buildSnapshotPayload(username, false);
 
         String currentTableId = gameEngine.getTableId();
         observers.forEach(o -> o.onTargetedTableSnapshot(currentTableId, playerId, snapshot));
@@ -101,7 +118,7 @@ public class GameEventBroadcaster {
         payload.put("smallBlind", pot.getSmallBlindAmount());
         payload.put("bigBlind", pot.getBigBlindAmount());
 
-        // 3. FIXED: Map physical seats to safe DTOs using strict layout indexing
+        // 3. Map physical seats to safe DTOs using strict layout indexing
         List<HandParticipantDTO> seatDTOs = new ArrayList<>();
         List<TableSeat> physicalSeats = gameEngine.getTableManager().getSeats();
 
@@ -143,18 +160,43 @@ public class GameEventBroadcaster {
      */
     private HandParticipantDTO mapSeatToSafeDTO(TableSeat seat, String viewerUsername, boolean revealAllCards) {
         boolean isViewer = seat.getUsername().equals(viewerUsername);
-        String cardVisibility = (isViewer || revealAllCards) ? seat.getHoleCards().toString() : "HIDDEN";
+
+        // FIX 1: Map raw Card objects to clean asset name tokens (e.g., "14-S,10-H") instead of raw memory .toString()
+        String cardVisibility;
+        if (isViewer || revealAllCards) {
+            if (seat.getHoleCards() == null || seat.getHoleCards().isEmpty()) {
+                cardVisibility = "[]";
+            } else {
+                List<String> cardTokens = new ArrayList<>();
+                for (pokergame.domain.model.Card card : seat.getHoleCards()) {
+                    if (card != null && card.getSuit() != null) {
+                        // Pulls the first character of the suit (e.g., "Spades" -> "S")
+                        String suitLetter = card.getSuit().trim().toUpperCase().substring(0, 1);
+                        cardTokens.add(card.getValue() + "-" + suitLetter);
+                    }
+                }
+                cardVisibility = String.join(",", cardTokens);
+            }
+        } else {
+            cardVisibility = "HIDDEN";
+        }
+
+        // Determine winner status safely (defaulting to false if engine does not explicitly track it mid-hand)
+        boolean isWinner = false;
+        if (gameEngine.getWinners() != null) {
+            isWinner = gameEngine.getWinners().contains(seat.getUsername());
+        }
 
         return new HandParticipantDTO(
                 "CURRENT_HAND",
                 seat.getUsername(),
                 seat.getSeatIndex(),
-                cardVisibility, // Ensures clients can't hack the network to see opponent cards!
+                cardVisibility,
                 seat.getChipsOnTable(),
                 seat.getCurrentRoundBet(),
                 0,
                 null,
-                seat.isFolded()
+                isWinner // FIX 2: Corrected data position mapping
         );
     }
 

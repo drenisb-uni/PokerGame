@@ -23,6 +23,7 @@ public class TableNetworkMessageHandler {
     private final ObjectMapper mapper = new ObjectMapper();
     private final Consumer<GameMessageDTO> eventBusBridge;
     private Map<String, Object> cachedSnapshot = null;
+    private String myCachedHoleCards = null;
 
     public TableNetworkMessageHandler(GameController controller, GameTableAnimationEngine animationEngine) {
         this.controller = controller;
@@ -125,11 +126,37 @@ public class TableNetworkMessageHandler {
             String selfUser = GameContext.getPlayerProfile().username();
             int myBalance = 0;
 
-            for (Map<String, Object> seat : seatsList) {
+            // Reset cache if we go back to waiting room or a new game setup
+            String gameState = (String) snapshot.get("gameState");
+            if ("WAITING_FOR_PLAYERS".equals(gameState)) {
+                this.myCachedHoleCards = null;
+            }
+
+            for (int i = 0; i < seatsList.size(); i++) {
+                Map<String, Object> seat = seatsList.get(i);
+
                 if (selfUser.equals(seat.get("playerUsername"))) {
                     int endChips = (int) seat.get("endChips");
-                    // Fall back to startChips if endChips hasn't been set yet
                     myBalance = endChips > 0 ? endChips : (int) seat.get("startChips");
+
+                    // --- Hole Cards Protection Layer ---
+                    Object holeCardsObj = seat.get("holeCards");
+                    String holeCardsStr = holeCardsObj != null ? holeCardsObj.toString() : "";
+
+                    if (!holeCardsStr.isEmpty() && !"HIDDEN".equals(holeCardsStr) && !"[]".equals(holeCardsStr)) {
+                        // Scenario A: This is a TARGETED_SNAPSHOT with cards. Lock them into cache!
+                        this.myCachedHoleCards = holeCardsStr;
+                    } else if ("HIDDEN".equals(holeCardsStr) && this.myCachedHoleCards != null) {
+                        // Scenario B: This is a TABLE_SNAPSHOT trying to hide them. Force the cache back in.
+                        try {
+                            seat.put("holeCards", this.myCachedHoleCards);
+                        } catch (UnsupportedOperationException e) {
+                            // If the JSON parser generated an unmodifiable map, replace it with a mutable clone
+                            Map<String, Object> mutableSeat = new java.util.HashMap<>(seat);
+                            mutableSeat.put("holeCards", this.myCachedHoleCards);
+                            seatsList.set(i, mutableSeat);
+                        }
+                    }
                     break;
                 }
             }

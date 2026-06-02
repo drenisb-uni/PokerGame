@@ -39,13 +39,15 @@ public class PokerGameEngine implements IPublicActionAPI {
     private int tableBuyIn = DEFAULT_BUY_IN;
     private String tableId;
 
+    private List<TableSeat> winners;
+
     public PokerGameEngine(IPlayerRepository playerRepository) {
         this.playerRepository = playerRepository;
         this.broadcaster.setGameEngine(this);
     }
 
-    // --- SYNCHRONIZED PUBLIC API BOUNDARY ---
 
+    // --- SYNCHRONIZED PUBLIC API BOUNDARY ---
     public synchronized void startNewHand() {
         if (tableManager.size() < 2 || isHandInProgress()) {
             System.out.println("[Engine] Cannot start new hand: Not enough players or hand already active.");
@@ -77,16 +79,16 @@ public class PokerGameEngine implements IPublicActionAPI {
             seat.clearCards();
         }
 
-        for (int i = 0; i < 2; i++) {
-            for (TableSeat seat : activeSeats) {
-                seat.setHoleCards(deck.getNextCard());
-            }
+        for (TableSeat seat : activeSeats) {
+            seat.setHoleCards(deck.getNextCard());
+            seat.setHoleCards(deck.getNextCard());
         }
 
         currentState = GameState.PRE_FLOP_BETTING;
         bettingPot.collectBlinds(tableManager);
 
         broadcaster.broadcastGameState(currentState);
+        broadcaster.broadcastTableSnapshot();
         broadcastBlindActions();
         promptNextPlayer();
     }
@@ -178,7 +180,7 @@ public class PokerGameEngine implements IPublicActionAPI {
 
     @Override
     public synchronized void RefreshSnapshot(String playerId) {
-        broadcaster.sendTargetedSnapshot(playerId);
+        broadcaster.sendTargetedSnapshot(playerId, "");
 
         if (isHandInProgress()) {
             TableSeat actor = tableManager.getCurrentPlayer();
@@ -237,8 +239,8 @@ public class PokerGameEngine implements IPublicActionAPI {
         return sitPlayerDown(id, tableBuyIn, -1);
     }
 
-    // --- INTERNAL PRIVATE LOGIC (Protected by public synchronized boundaries) ---
 
+    // --- INTERNAL PRIVATE LOGIC (Protected by public synchronized boundaries) ---
     private void scheduleNextHand() {
         if (nextHandScheduled || tableManager.size() < 2) return;
         nextHandScheduled = true;
@@ -329,7 +331,8 @@ public class PokerGameEngine implements IPublicActionAPI {
         }
 
         HandResult bestResult = playerResults.values().stream().max(HandResult::compareTo).orElseThrow();
-        List<TableSeat> winners = activePlayers.stream()
+
+        winners = activePlayers.stream()
                 .filter(seat -> playerResults.get(seat).compareTo(bestResult) == 0).toList();
 
         bettingPot.awardPotToWinners(winners);
@@ -418,8 +421,8 @@ public class PokerGameEngine implements IPublicActionAPI {
         }
     }
 
-    // --- SAFE READ-ONLY HELPERS ---
 
+    // --- SAFE READ-ONLY HELPERS ---
     private boolean isBetweenHands() {
         return currentState == GameState.WAITING_FOR_PLAYERS || currentState == GameState.HAND_OVER;
     }
@@ -457,6 +460,7 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     // Pass-through getters and remaining non-mutating methods...
+
     public int getPotSize() { return bettingPot.getPotSize(); }
     public int getHighestCurrentBet() { return bettingPot.getHighestBet(); }
     public TableSeat getPlayerByUsername(String name) { return tableManager.findByUsername(name).orElse(null); }
@@ -467,7 +471,6 @@ public class PokerGameEngine implements IPublicActionAPI {
     public int getBigBlindAmount() { return bettingPot.getBigBlindAmount(); }
     public synchronized List<Card> getCommunityCards() { return List.copyOf(communityCards); }
     public void addObserver(IGameEventListener obs) { broadcaster.addObserver(obs); }
-
     public synchronized boolean hasPlayer(String username) {
         return tableManager.findByUsername(username).isPresent();
     }
@@ -626,5 +629,9 @@ public class PokerGameEngine implements IPublicActionAPI {
 
     public void setTableId(String tableId) {
         this.tableId = tableId;
+    }
+
+    public List<TableSeat> getWinners() {
+        return winners;
     }
 }
