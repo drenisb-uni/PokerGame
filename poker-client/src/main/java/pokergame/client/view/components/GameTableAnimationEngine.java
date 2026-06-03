@@ -56,11 +56,10 @@ public class GameTableAnimationEngine {
 
     private void executeSeatAnimation(HandActionDTO action) {
         // Locate target controller dynamically from layout references
-        PlayerSeatController targetSeat = view.getSeatController(action.id());
+        PlayerSeatController targetSeat = view.getSeatControllerByUsername(action.playerId());
 
         if (targetSeat != null) {
             // Trigger dedicated rendering logic inside the sub-controller
-            view.logAction(action.playerId() + ": " + action.actionType() + " ($" + action.amount() + ")");
         }
 
         // Provide a safety margin for the layout pulse before checking the queue again
@@ -74,7 +73,6 @@ public class GameTableAnimationEngine {
         HBox cardsBox = controller.getCardsBox();
         Label actionLabel = controller.getActionLabel();
 
-        controller.setAction("FOLDED");
         if (!playerBox.getStyleClass().contains("player-folded")) {
             playerBox.getStyleClass().add("player-folded");
         }

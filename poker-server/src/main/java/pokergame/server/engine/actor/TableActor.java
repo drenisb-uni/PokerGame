@@ -151,7 +151,6 @@ public class TableActor implements Runnable {
         if ("AUTO_START_HAND".equals(tick.eventType())) {
             gameEngine.startNewHand();
         } else if ("PLAYER_TIMEOUT".equals(tick.eventType())) {
-            // Force active player to fold
             String activeUser = gameEngine.getTableManager().getCurrentPlayer().getUsername();
             gameEngine.Fold(activeUser);
         }

@@ -6,6 +6,7 @@ import pokergame.domain.dto.PlayerProfileDTO;
 import java.util.Map;
 
 public class GameContext {
+    private static GameContext instance;
     private static PlayerProfileDTO userProfile;
     private static String jwtToken;
     private static String currentTableId = null;
@@ -20,6 +21,9 @@ public class GameContext {
         return userProfile;
     }
 
+    public static String getUsername(){
+        return userProfile.username();
+    }
     public static String getJwtToken() { return jwtToken; }
     public static void setJwtToken(String token) { jwtToken = token; }
 
@@ -38,5 +42,9 @@ public class GameContext {
     }
     public static Map<String, Object> getLastTableSnapshot() {
         return lastTableSnapshot;
+    }
+
+    public static GameContext getInstance() {
+        return instance;
     }
 }

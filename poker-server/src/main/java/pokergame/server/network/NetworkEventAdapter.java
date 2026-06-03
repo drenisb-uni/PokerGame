@@ -33,7 +33,7 @@ public class NetworkEventAdapter implements IGameEventListener {
     @Override
     public void onTargetedTableSnapshot(String tableID, String playerId, Map<String, Object> snapshotPayload) {
         GameMessageDTO message = new GameMessageDTO("TARGETED_SNAPSHOT", snapshotPayload);
-        webSocketServer.sendMessageToPlayer(tableID, playerId, message);
+        webSocketServer.broadcastToTablePlayer(tableID, playerId, message);
     }
 
     @Override
@@ -59,6 +59,35 @@ public class NetworkEventAdapter implements IGameEventListener {
     public void onCommunityCardsDealt(List<Card> cards) {
         GameMessageDTO message = new GameMessageDTO("COMMUNITY_CARDS", Map.of("cards", cards));
         webSocketServer.broadcastMessage(message);
+    }
+
+    @Override
+    public void onCardsDealt(String tableId, Map<String, String> playerHoleCards) {
+        // Iterate over the dealt cards and send targeted vs broadcast events
+        for (Map.Entry<String, String> entry : playerHoleCards.entrySet()) {
+            String username = entry.getKey();
+            String actualCards = entry.getValue();
+
+            // 1. Send actual cards to the specific player
+            GameMessageDTO targeted = new GameMessageDTO("HOLE_CARDS_DEALT", Map.of(
+                    "username", username,
+                    "cards", actualCards
+            ));
+            webSocketServer.broadcastToTablePlayer(tableId, username, targeted);
+
+            // 2. Broadcast masked cards to everyone else so they see the card backs render
+            GameMessageDTO broadcast = new GameMessageDTO("OPPONENT_CARDS_DEALT", Map.of(
+                    "username", username,
+                    "cards", "HIDDEN"
+            ));
+            webSocketServer.broadcastToTableExcluding(tableId, username, broadcast);
+        }
+    }
+
+    @Override
+    public void onPotChanged(String tableId, int newPotTotal) {
+        GameMessageDTO msg = new GameMessageDTO("POT_UPDATED", Map.of("totalPot", newPotTotal));
+        webSocketServer.broadcastToTable(tableId, msg);
     }
 
     @Override

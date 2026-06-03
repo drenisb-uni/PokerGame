@@ -19,4 +19,8 @@ public interface IGameEventListener {
     void onHandResult(List<String> winnerUsernames, HandResult winnerHand, int potSize);
     void onTableSnapshotBroadcast(String tableId, Map<String, Object> snapshotPayload);
     void onTargetedTableSnapshot(String tableId, String playerId, Map<String, Object> snapshotPayload);
+
+    void onCardsDealt(String tableId, Map<String, String> playerHoleCards);
+
+    void onPotChanged(String tableId, int newPotTotal);
 }

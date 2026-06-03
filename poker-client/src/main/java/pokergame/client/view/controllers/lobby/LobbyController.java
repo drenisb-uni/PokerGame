@@ -192,7 +192,7 @@ public class LobbyController {
             }
             ObjectNode message = objectMapper.createObjectNode();
             message.put("action", "JOIN_TABLE");
-            message.put("tableId", tableId);
+            message.put("tableId", inputText);
 
             if (PokerWebSocketClient.getInstance() == null || !PokerWebSocketClient.getInstance().isOpen()) {
                 System.err.println("[Lobby] Cannot host table: WebSocket is not connected!");

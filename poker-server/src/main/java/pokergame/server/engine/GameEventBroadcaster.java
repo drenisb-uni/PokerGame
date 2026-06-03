@@ -9,11 +9,15 @@ import pokergame.server.domain.model.TableSeat;
 import pokergame.domain.rules.HandResult;
 
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 public class GameEventBroadcaster {
     private final List<IGameEventListener> observers = new ArrayList<>();
     private int actionSequenceCounter = 0;
+
+    private final ExecutorService networkOutboundPool = Executors.newFixedThreadPool(4);
 
     // NEW: Reference to the engine to read table state when building snapshots
     private PokerGameEngine gameEngine;
@@ -26,20 +30,35 @@ public class GameEventBroadcaster {
     public void addObserver(IGameEventListener listener) { observers.add(listener); }
 
     public void broadcastGameState(GameState state) {
-        observers.forEach(o -> o.onGameStateChanged(state));
+        networkOutboundPool.submit(() -> observers.forEach(o -> o.onGameStateChanged(state)));
     }
 
     public void broadcastCards(List<Card> cards) {
-        observers.forEach(o -> o.onCommunityCardsDealt(cards));
+        networkOutboundPool.submit(() -> observers.forEach(o -> o.onCommunityCardsDealt(cards)));
+    }
+
+    public void broadcastHoleCards(List<Card> cards) {
+        if (gameEngine == null) return;
+        String currentTableId = gameEngine.getTableId();
+
+        Map<String, String> playerHoleCards = new HashMap<>();
+
+        for (TableSeat seat : gameEngine.getTableManager().getSeats()) {
+            if (seat != null && !seat.isFolded()) {
+                String cardTokens = getCardTokensAsString(seat.getHoleCards());
+                playerHoleCards.put(seat.getUsername(), cardTokens);
+            }
+        }
+        networkOutboundPool.submit(() -> observers.forEach(o -> o.onCardsDealt(currentTableId, playerHoleCards)) );
     }
 
     public void broadcastSeatOccupied(TableSeat seat, String handId) {
         HandParticipantDTO dto = new HandParticipantDTO(
                 handId == null ? "WAITING_FOR_HAND" : handId,
                 seat.getUsername(), seat.getSeatIndex(), "HIDDEN",
-                seat.getChipsOnTable(), seat.getChipsOnTable(), 0, null, false
+                seat.getChipsOnTable(), seat.getChipsOnTable(), 0, false, false, false
         );
-        observers.forEach(o -> o.onNewSeatOccupied(dto));
+        networkOutboundPool.submit(() -> observers.forEach(o -> o.onNewSeatOccupied(dto)));
     }
 
     public void broadcastAction(TableSeat actor, String type, int amt, GameState state, String handId) {
@@ -47,7 +66,7 @@ public class GameEventBroadcaster {
                 0, handId, actor.getUsername(), state.name(),
                 actionSequenceCounter++, type, amt
         );
-        observers.forEach(o -> o.onPlayerAction(dto));
+        networkOutboundPool.submit(() -> observers.forEach(o -> o.onPlayerAction(dto)));
     }
 
     public void broadcastTurnPrompt(TableSeat actor, int amountToCall) {
@@ -56,12 +75,9 @@ public class GameEventBroadcaster {
 
     public void broadcastResult(List<TableSeat> winners, HandResult result, int potSize) {
         List<String> usernames = winners.stream().map(TableSeat::getUsername).toList();
-        observers.forEach(o -> o.onHandResult(usernames, result, potSize));
+        networkOutboundPool.submit(() -> observers.forEach(o -> o.onHandResult(usernames, result, potSize)));
     }
-    /**
-     * Broadcasts the table state to EVERYONE.
-     * Hides hole cards unless the hand is completely over.
-     */
+
     public void broadcastTableSnapshot() {
         if (gameEngine == null) return;
 
@@ -80,18 +96,14 @@ public class GameEventBroadcaster {
 
             // Build a snapshot where ONLY this specific username gets their real cards exposed
             Map<String, Object> personalSnapshot = buildSnapshotPayload(uName, revealAllCards);
-            observers.forEach(o -> o.onTargetedTableSnapshot(currentTableId, pId, personalSnapshot));
+            networkOutboundPool.submit(() -> observers.forEach(o -> o.onTargetedTableSnapshot(currentTableId, pId, personalSnapshot)));
         }
 
         // 2. (Optional) Broadcast a fully blinded snapshot for true table spectators/observers
         Map<String, Object> spectatorSnapshot = buildSnapshotPayload(null, revealAllCards);
-        observers.forEach(o -> o.onTableSnapshotBroadcast(currentTableId, spectatorSnapshot));
+        networkOutboundPool.submit(() -> observers.forEach(o -> o.onTableSnapshotBroadcast(currentTableId, spectatorSnapshot)));
     }
 
-    /**
-     * Sends a snapshot strictly to ONE player.
-     * Crucial for letting a player see their own hidden hole cards upon reconnecting.
-     */
     public void sendTargetedSnapshot(String playerId, String username) {
         if (gameEngine == null) return;
 
@@ -99,7 +111,7 @@ public class GameEventBroadcaster {
         Map<String, Object> snapshot = buildSnapshotPayload(username, false);
 
         String currentTableId = gameEngine.getTableId();
-        observers.forEach(o -> o.onTargetedTableSnapshot(currentTableId, playerId, snapshot));
+        networkOutboundPool.submit(() -> observers.forEach(o -> o.onTargetedTableSnapshot(currentTableId, playerId, snapshot)));
     }
 
     /**
@@ -149,7 +161,8 @@ public class GameEventBroadcaster {
                 0,
                 0,
                 0,
-                null,
+                false,
+                false,
                 false
         );
     }
@@ -168,7 +181,7 @@ public class GameEventBroadcaster {
                 cardVisibility = "[]";
             } else {
                 List<String> cardTokens = new ArrayList<>();
-                for (pokergame.domain.model.Card card : seat.getHoleCards()) {
+                for (Card card : seat.getHoleCards()) {
                     if (card != null && card.getSuit() != null) {
                         // Pulls the first character of the suit (e.g., "Spades" -> "S")
                         String suitLetter = card.getSuit().trim().toUpperCase().substring(0, 1);
@@ -195,12 +208,34 @@ public class GameEventBroadcaster {
                 seat.getChipsOnTable(),
                 seat.getCurrentRoundBet(),
                 0,
-                null,
+                false,
+                false,
                 isWinner // FIX 2: Corrected data position mapping
         );
     }
 
     public List<IGameEventListener> getObservers() {
         return observers;
+    }
+
+    public String getCardTokensAsString(List<Card> cards) {
+        if (cards == null || cards.isEmpty()) {
+            return "";
+        }
+
+        return cards.stream()
+                .filter(card -> card != null && card.getSuit() != null)
+                .map(card -> {
+                    String valueStr = switch (card.getValue()) {
+                        case 14 -> "A";
+                        case 13 -> "K";
+                        case 12 -> "Q";
+                        case 11 -> "J";
+                        default -> String.valueOf(card.getValue());
+                    };
+                    String suitLetter = card.getSuit().trim().toUpperCase().substring(0, 1);
+                    return valueStr + "-" + suitLetter;
+                })
+                .collect(Collectors.joining(",")); // Joins them with commas automatically
     }
 }

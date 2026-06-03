@@ -152,4 +152,6 @@ public class BotManager implements IGameEventListener {
     @Override public void onCommunityCardsDealt(List<Card> cards) {}
     @Override public void onHandResult(List<String> winnerUsernames, HandResult winnerHand, int potSize) {}
     @Override public void onTargetedTableSnapshot(String tableId, String playerId, Map<String, Object> snapshotPayload) {}
+    @Override public void onCardsDealt(String tableId, Map<String, String> playerHoleCards) {}
+    @Override public void onPotChanged(String tableId, int newPotTotal) {}
 }

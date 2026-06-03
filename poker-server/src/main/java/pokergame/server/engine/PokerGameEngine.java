@@ -48,7 +48,7 @@ public class PokerGameEngine implements IPublicActionAPI {
 
 
     // --- SYNCHRONIZED PUBLIC API BOUNDARY ---
-    public synchronized void startNewHand() {
+    public void startNewHand() {
         if (tableManager.size() < 2 || isHandInProgress()) {
             System.out.println("[Engine] Cannot start new hand: Not enough players or hand already active.");
             return;
@@ -82,6 +82,7 @@ public class PokerGameEngine implements IPublicActionAPI {
         for (TableSeat seat : activeSeats) {
             seat.setHoleCards(deck.getNextCard());
             seat.setHoleCards(deck.getNextCard());
+            broadcaster.broadcastHoleCards(seat.getHoleCards());
         }
 
         currentState = GameState.PRE_FLOP_BETTING;
@@ -93,12 +94,12 @@ public class PokerGameEngine implements IPublicActionAPI {
         promptNextPlayer();
     }
 
-    public synchronized void processIncomingCommand(PlayerCommand command) {
+    public void processIncomingCommand(PlayerCommand command) {
         command.execute(this);
     }
 
     @Override
-    public synchronized void Fold(String actorId) {
+    public void Fold(String actorId) {
         TableSeat actor = validateAndGetActor(actorId);
         if (actor == null) return;
 
@@ -108,7 +109,7 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     @Override
-    public synchronized void Call(String actorId) {
+    public void Call(String actorId) {
         TableSeat actor = validateAndGetActor(actorId);
         if (actor == null) return;
 
@@ -120,7 +121,7 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     @Override
-    public synchronized void Raise(String actorId, int amount) {
+    public void Raise(String actorId, int amount) {
         TableSeat actor = validateAndGetActor(actorId);
         if (actor == null) return;
 
@@ -131,7 +132,7 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     @Override
-    public synchronized void JoinTable(String playerId, int buyIn) {
+    public void JoinTable(String playerId, int buyIn) {
         boolean seatedSuccessfully = false;
 
         if (playerId != null && playerId.startsWith("Bot_")) {
@@ -160,13 +161,13 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     @Override
-    public synchronized void LeaveTable(String playerId) {
+    public void LeaveTable(String playerId) {
         leavePlayer(playerId);
         broadcaster.broadcastTableSnapshot();
     }
 
     @Override
-    public synchronized void DisconnectPlayer(String playerId) {
+    public void DisconnectPlayer(String playerId) {
         System.out.println("[Engine Alert] Cleaning up disconnected player: " + playerId);
         tableManager.handleCatastrophicDisconnect(playerId);
         leavePlayer(playerId);
@@ -174,12 +175,12 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     @Override
-    public synchronized void AddBot() {
+    public void AddBot() {
         broadcaster.broadcastTableSnapshot();
     }
 
     @Override
-    public synchronized void RefreshSnapshot(String playerId) {
+    public void RefreshSnapshot(String playerId) {
         broadcaster.sendTargetedSnapshot(playerId, "");
 
         if (isHandInProgress()) {
@@ -192,11 +193,11 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     @Override
-    public synchronized void StartHand() {
+    public void StartHand() {
         startNewHand();
     }
 
-    public synchronized void configureTableBuyIn(int buyIn) {
+    public void configureTableBuyIn(int buyIn) {
         if (!isBetweenHands() || tableManager.size() > 0) {
             return;
         }
@@ -205,7 +206,7 @@ public class PokerGameEngine implements IPublicActionAPI {
         bettingPot.setSmallBlindAmount(Math.max(1, this.tableBuyIn / 50));
     }
 
-    public synchronized TableSeat sitPlayerDown(String id, int chips, int idx) {
+    public TableSeat sitPlayerDown(String id, int chips, int idx) {
         return tableManager.findByUsername(id).orElseGet(() -> {
             int seatIndex = idx >= 0 ? idx : findFirstOpenSeatIndex();
             if (seatIndex < 0 || seatIndex >= tableManager.size()) {
@@ -235,7 +236,7 @@ public class PokerGameEngine implements IPublicActionAPI {
         });
     }
 
-    public synchronized TableSeat sitPlayerDown(String id) {
+    public TableSeat sitPlayerDown(String id) {
         return sitPlayerDown(id, tableBuyIn, -1);
     }
 
@@ -502,7 +503,8 @@ public class PokerGameEngine implements IPublicActionAPI {
                         seat.getChipsOnTable(),
                         seat.getChipsOnTable(),
                         0,
-                        null,
+                        false,
+                        false,
                         false
                 ))
                 .toList();

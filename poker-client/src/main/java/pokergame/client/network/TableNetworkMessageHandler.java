@@ -22,48 +22,64 @@ public class TableNetworkMessageHandler {
     private final GameTableAnimationEngine animationEngine;
     private final ObjectMapper mapper = new ObjectMapper();
     private final Consumer<GameMessageDTO> eventBusBridge;
-    private Map<String, Object> cachedSnapshot = null;
-    private String myCachedHoleCards = null;
 
     public TableNetworkMessageHandler(GameController controller, GameTableAnimationEngine animationEngine) {
         this.controller = controller;
         this.animationEngine = animationEngine;
         this.eventBusBridge = this::interceptMessageBusEnvelope;
 
-        // Subscribe using an explicit consumer reference instance
         EventBus.subscribe(GameMessageDTO.class, eventBusBridge);
-        this.animationEngine.setOnQueueDrained(this::flushDeferredSnapshot);
 
+        // RESTORED: Hydrate UI instantly if a snapshot exists in context from Lobby transition
         Map<String, Object> cachedSnapshot = GameContext.getLastTableSnapshot();
         if (cachedSnapshot != null) {
-            System.out.println("[UI Controller] Found cached table layout. Performing initial draw...");
-            evaluateSnapshotRouting(cachedSnapshot);
+            applyInitialSnapshot(cachedSnapshot);
         }
     }
 
-    /**
-     * Call this when leaving the table to prevent duplicate event loops.
-     */
     public void cleanup() {
         EventBus.unsubscribe(GameMessageDTO.class, eventBusBridge);
     }
 
     private void interceptMessageBusEnvelope(GameMessageDTO message) {
-        JsonNode payloadNode = mapper.valueToTree(message.payload());
-        processInboundPacket(message.type(), payloadNode);
-    }
+        JsonNode payload = mapper.valueToTree(message.payload());
 
-    public void processInboundPacket(String type, JsonNode payload) {
         try {
-            switch (type) {
+            switch (message.type()) {
+                // 1. INITIAL LOAD ONLY
                 case "TABLE_SNAPSHOT", "TARGETED_SNAPSHOT" -> {
+                    @SuppressWarnings("unchecked")
                     Map<String, Object> snapshot = mapper.convertValue(payload, Map.class);
-                    evaluateSnapshotRouting(snapshot);
+                    Platform.runLater(() -> applyInitialSnapshot(snapshot));
                 }
-                case "PLAYER_ACTION" -> {
-                    HandActionDTO action = mapper.treeToValue(payload, HandActionDTO.class);
-                    animationEngine.queueVisualAction(action);
+
+                // 2. SURGICAL DELTA UPDATES (Cards & Chips)
+                case "HOLE_CARDS_DEALT", "OPPONENT_CARDS_DEALT" -> {
+                    String user = payload.get("username").asText();
+                    String cards = payload.get("cards").asText();
+
+                    Platform.runLater(() -> controller.updatePlayerHoleCards(user, cards));
                 }
+
+                case "POT_UPDATED" -> {
+                    int totalPot = payload.get("totalPot").asInt();
+                    // FIXED: Method name matches the refactored GameController
+                    Platform.runLater(() -> controller.updatePotSize(totalPot));
+                }
+
+                case "PLAYER_CHIPS_UPDATED" -> {
+                    String user = payload.get("username").asText();
+                    int balance = payload.get("newBalance").asInt();
+                    Platform.runLater(() -> controller.updatePlayerChips(user, balance));
+                }
+
+                case "COMMUNITY_CARDS" -> {
+                    JsonNode cardsArray = payload.get("cards");
+                    List<Card> receivedCards = CardParser.parseCardsFromJson(cardsArray);
+                    Platform.runLater(() -> controller.updateCommunityCards(receivedCards));
+                }
+
+                // 3. GAME STATE & TURN CONTROLS (Restored!)
                 case "PLAYER_TURN" -> {
                     String activeUser = payload.get("username").asText();
                     int amountToCall = payload.get("amountToCall").asInt();
@@ -74,95 +90,32 @@ public class TableNetworkMessageHandler {
                         controller.setGameStatus(isMe ? "YOUR TURN!" : activeUser + "'s turn...");
                     });
                 }
+
+                case "PLAYER_ACTION" -> {
+                    HandActionDTO action = mapper.treeToValue(payload, HandActionDTO.class);
+                    animationEngine.queueVisualAction(action);
+                }
+
                 case "GAME_STATE_CHANGED" -> {
                     String phase = payload.get("state").asText();
                     Platform.runLater(() -> {
                         controller.setGameStatus("Round: " + phase);
-
-                        // Disable admin actions like adding bots if a hand is mid-progress
                         boolean isHandInProgress = !"WAITING_FOR_PLAYERS".equals(phase) && !"SHOWDOWN".equals(phase);
                         controller.setAdminControlsDisabled(isHandInProgress);
                     });
                 }
-                case "COMMUNITY_CARDS" -> {
-                    JsonNode cardsArray = payload.get("cards"); // Assumes server wraps them in a "cards" array
-                    List<Card> receivedCards = CardParser.parseCardsFromJson(cardsArray);
-                    System.out.println("Community Cards recieved " + cardsArray);
-                    Platform.runLater(() -> {
-                        // Now you are actually passing the server's cards to your controller!
-                        controller.updateCommunityCards(receivedCards);
-                    });
-                }
             }
         } catch (Exception e) {
-            System.err.println("[Decoder Error] Failed to map variant packet: " + e.getMessage());
+            System.err.println("[Delta Router Error] Failed to route delta event: " + e.getMessage());
         }
     }
 
-    private void evaluateSnapshotRouting(Map<String, Object> snapshot) {
-        String state = (String) snapshot.get("gameState");
-
-        if ("WAITING_FOR_PLAYERS".equals(state) || !animationEngine.isWorking()) {
-            applySnapshotToUI(snapshot);
-            return;
+    private void applyInitialSnapshot(Map<String, Object> snapshot) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> seatsList = (List<Map<String, Object>>) snapshot.get("seats");
+        if (seatsList != null) {
+            // FIXED: Point to the new layout generator, not the old O(N) loop
+            controller.buildInitialTableLayout(seatsList);
         }
-
-        this.cachedSnapshot = snapshot;
-    }
-
-    private void flushDeferredSnapshot() {
-        if (cachedSnapshot != null) {
-            Map<String, Object> targeting = cachedSnapshot;
-            cachedSnapshot = null;
-            applySnapshotToUI(targeting);
-        }
-    }
-
-    private void applySnapshotToUI(Map<String, Object> snapshot) {
-        Platform.runLater(() -> {
-            System.out.println("[TableNetworkMessageHandler] Apply Snapshot");
-            int pot = (int) snapshot.get("potSize");
-            List<Map<String, Object>> seatsList = (List<Map<String, Object>>) snapshot.get("seats");
-            String selfUser = GameContext.getPlayerProfile().username();
-            int myBalance = 0;
-
-            // Reset cache if we go back to waiting room or a new game setup
-            String gameState = (String) snapshot.get("gameState");
-            if ("WAITING_FOR_PLAYERS".equals(gameState)) {
-                this.myCachedHoleCards = null;
-            }
-
-            for (int i = 0; i < seatsList.size(); i++) {
-                Map<String, Object> seat = seatsList.get(i);
-
-                if (selfUser.equals(seat.get("playerUsername"))) {
-                    int endChips = (int) seat.get("endChips");
-                    myBalance = endChips > 0 ? endChips : (int) seat.get("startChips");
-
-                    // --- Hole Cards Protection Layer ---
-                    Object holeCardsObj = seat.get("holeCards");
-                    String holeCardsStr = holeCardsObj != null ? holeCardsObj.toString() : "";
-
-                    if (!holeCardsStr.isEmpty() && !"HIDDEN".equals(holeCardsStr) && !"[]".equals(holeCardsStr)) {
-                        // Scenario A: This is a TARGETED_SNAPSHOT with cards. Lock them into cache!
-                        this.myCachedHoleCards = holeCardsStr;
-                    } else if ("HIDDEN".equals(holeCardsStr) && this.myCachedHoleCards != null) {
-                        // Scenario B: This is a TABLE_SNAPSHOT trying to hide them. Force the cache back in.
-                        try {
-                            seat.put("holeCards", this.myCachedHoleCards);
-                        } catch (UnsupportedOperationException e) {
-                            // If the JSON parser generated an unmodifiable map, replace it with a mutable clone
-                            Map<String, Object> mutableSeat = new java.util.HashMap<>(seat);
-                            mutableSeat.put("holeCards", this.myCachedHoleCards);
-                            seatsList.set(i, mutableSeat);
-                        }
-                    }
-                    break;
-                }
-            }
-
-            controller.updateChipsAndPotDisplay(myBalance, pot);
-            controller.syncSeatsLayout(seatsList);
-        });
     }
 }

@@ -68,6 +68,7 @@ public class PokerWebSocketServer extends WebSocketServer {
                 if (tableActor != null) {
                     // 2. CONCURRENCY SAFE: Dispatch a non-blocking disconnect notification to the loop mailbox.
                     tableActor.tell(new PlayerActionMessage(playerId, "LEAVE_TABLE", 0));
+                    this.sessionManager.unbindPlayerFromTableRoom(playerId, activeTableId);
 
                     // 3. LIFECYCLE MANAGEMENT: Clean up empty tables to avoid memory leaks.
                     if (tableActor.getHumanPlayerCount() <= 1) {
@@ -102,18 +103,23 @@ public class PokerWebSocketServer extends WebSocketServer {
             // Safe extraction of buyIn if provided by the UI, default to 1000
             int buyInAmount = rootNode.has("buyIn") ? rootNode.get("buyIn").asInt() : 1000;
 
-            // ==========================================
-            // 1. LOBBY ACTIONS (Room Lifecycle)
-            // ==========================================
+// ==========================================
+// 1. LOBBY ACTIONS (Room Lifecycle)
+// ==========================================
             if (actionType.equals("CREATE_TABLE")) {
                 // Spawns and registers the thread-confined TableActor
                 String newTableId = lobbyManager.createNewTable();
                 conn.setAttachment(newTableId);
                 client.setCurrentTableId(newTableId);
 
+                // 👉 CHANGE: Securely bind the host player to the room roster FIRST
+                sessionManager.bindPlayerToTableRoom(playerId, newTableId);
+
                 // Confirm room creation to host with their 6-letter code
                 GameMessageDTO response = new GameMessageDTO("TABLE_CREATED", Map.of("tableId", newTableId));
-                sendMessageToPlayer(newTableId, playerId, response);
+
+                // 👉 WHY: This will now succeed because the room roster contains the playerId!
+                broadcastToTablePlayer(newTableId, playerId, response);
 
                 // Grab the running Actor boundary for this specific table
                 TableActor tableActor = lobbyManager.getActorForTable(newTableId);
@@ -122,17 +128,14 @@ public class PokerWebSocketServer extends WebSocketServer {
                     return;
                 }
 
-                // 1. Queue the host to join via Actor Message Protocol
+                // Queue the host to join via Actor Message Protocol
                 tableActor.tell(new PlayerActionMessage(playerId, "JOIN_TABLE", buyInAmount));
 
-                // 2. Extract bot count and dispatch individual addition messages down to the loop
+                // Extract bot count and dispatch individual addition messages down to the loop
                 int botCount = rootNode.has("botCount") ? rootNode.get("botCount").asInt() : 0;
                 for (int i = 0; i < botCount; i++) {
                     tableActor.tell(new PlayerActionMessage(playerId, "ADD_BOT", 0));
                 }
-
-                // 3. Extract auto-start flag and queue a start command safely inside the Actor's loop boundary
-//                boolean startImmediately = rootNode.has("startImmediately") && rootNode.get("startImmediately").asBoolean();
 
                 return;
             }
@@ -146,9 +149,15 @@ public class PokerWebSocketServer extends WebSocketServer {
                 if (tableActor != null) {
                     client.setCurrentTableId(targetTableId);
 
+                    // 👉 CHANGE: Securely bind the joining player to the room roster FIRST
+                    this.sessionManager.bindPlayerToTableRoom(playerId, targetTableId);
+                    System.out.println("[WebSocket] Linked connection for " + playerId + " to room tracking registry: " + targetTableId);
+
                     // Confirm join approval back to client socket
                     GameMessageDTO response = new GameMessageDTO("TABLE_JOINED", Map.of("tableId", targetTableId));
-                    sendMessageToPlayer(targetTableId, playerId, response);
+
+                    // 👉 CHANGE: Swapped out raw conn.send for the refactored, unified broadcaster method
+                    broadcastToTablePlayer(targetTableId, playerId, response);
 
                     // Safe Async Ingestion: Drop message into the targeted room Actor Mailbox
                     tableActor.tell(new PlayerActionMessage(playerId, "JOIN_TABLE", buyInAmount));
@@ -198,15 +207,6 @@ public class PokerWebSocketServer extends WebSocketServer {
         }
     }
 
-    private void sendErrorToSocket(WebSocket conn, String errorMsg) {
-        try {
-            String json = objectMapper.writeValueAsString(new GameMessageDTO("ERROR", errorMsg));
-            conn.send(json);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     @Override
     public void onError(WebSocket conn, Exception ex) {
         System.err.println("Network socket layer exception: " + ex.getMessage());
@@ -217,10 +217,6 @@ public class PokerWebSocketServer extends WebSocketServer {
         System.out.println("Poker WebSocket Server successfully bound and running on port: " + getPort());
     }
 
-    /**
-     * Broadcasts a properly serialized JSON message to ALL connected clients.
-     * Use this for global table snapshots and community card reveals.
-     */
     public void broadcastMessage(GameMessageDTO message) {
         try {
             // THIS is where the magic happens. Converts the DTO/Map into perfect JSON.
@@ -239,31 +235,28 @@ public class PokerWebSocketServer extends WebSocketServer {
         }
     }
 
-    /**
-     * Sends a properly serialized JSON message to a SPECIFIC player.
-     * Use this for private messages like hole cards or error notifications.
-     */
-    public void sendMessageToPlayer(String targetTableId, String playerId, GameMessageDTO message) {
+    public void broadcastToTablePlayer(String targetTableId, String playerId, GameMessageDTO message) {
         if (targetTableId == null || targetTableId.isBlank()) {
             System.err.println("[WebSocket Broadcaster] Aborted targeted message: targetTableId is null or empty.");
             return;
         }
         try {
+            // 1. Verify table layout occupancy directly using the clear roster map instead of attachments
+            java.util.Set<String> roomRoster = sessionManager.getPlayersInRoom(targetTableId);
+
+            if (!roomRoster.contains(playerId)) {
+                System.out.println("[WebSocket] Dropped targeted message for " + playerId + " (Player is not recorded at table " + targetTableId + ")");
+                return;
+            }
+
+            // 2. Fetch the client connection wrapper seamlessly by Player Id reference
             ClientConnection client = sessionManager.getConnectionByPlayerId(playerId);
 
             if (client != null && client.getSocket() != null && client.getSocket().isOpen()) {
-                Object attachment = client.getSocket().getAttachment();
-                String playerTableId = (attachment instanceof String) ? (String) attachment : null;
-
-                if (targetTableId.equals(playerTableId)) {
-                    String jsonString = objectMapper.writeValueAsString(message);
-                    client.getSocket().send(jsonString);
-
-                } else {
-                    System.out.println("[WebSocket] Dropped targeted message for " + playerId + " (Player is not at table " + targetTableId + ")");
-                }
+                String jsonString = objectMapper.writeValueAsString(message);
+                client.getSocket().send(jsonString);
             } else {
-                System.out.println("[WebSocket] Dropped message for " + playerId + " (Not connected)");
+                System.out.println("[WebSocket] Dropped message for " + playerId + " (Not connected or connection dead)");
             }
         } catch (Exception e) {
             System.err.println("[WebSocket] FATAL: Targeted message serialization/sending failed for " + playerId + ": " + e.getMessage());
@@ -278,18 +271,18 @@ public class PokerWebSocketServer extends WebSocketServer {
         }
 
         try {
+            // 1. Pull the unique list of players assigned to this room context
+            java.util.Set<String> roomRoster = sessionManager.getPlayersInRoom(targetTableId);
+            if (roomRoster.isEmpty()) return;
+
             String jsonMessage = objectMapper.writeValueAsString(message);
 
-            for (org.java_websocket.WebSocket conn : getConnections()) {
+            // 2. Optimization: Loop directly through the room's targeted users instead of scanning every player globally!
+            for (String playerId : roomRoster) {
+                ClientConnection client = sessionManager.getConnectionByPlayerId(playerId);
 
-                if (conn != null && conn.isOpen()) {
-
-                    Object attachment = conn.getAttachment();
-                    String playerTableId = (attachment instanceof String) ? (String) attachment : null;
-
-                    if (targetTableId.equals(playerTableId)) {
-                        conn.send(jsonMessage);
-                    }
+                if (client != null && client.getSocket() != null && client.getSocket().isOpen()) {
+                    client.getSocket().send(jsonMessage);
                 }
             }
         } catch (Exception e) {
@@ -298,13 +291,9 @@ public class PokerWebSocketServer extends WebSocketServer {
         }
     }
 
-    /**
-     * Extracts a specific string query parameter from a URI / resource descriptor.
-     * Supports format: "/?token=abc&buyIn=1000" or raw query segments.
-     * * @param resourceDescriptor The raw request path/query from the handshake
-     * @param key The name of the parameter to fetch (e.g., "token")
-     * @return The decoded string value, or null if not found/malformed
-     */
+    public void broadcastToTableExcluding(String tableId, String username, GameMessageDTO broadcast) {
+    }
+
     private String extractQueryParam(String resourceDescriptor, String key) {
         if (resourceDescriptor == null || key == null || resourceDescriptor.isBlank()) {
             return null;
@@ -339,13 +328,6 @@ public class PokerWebSocketServer extends WebSocketServer {
         return null; // Parameter not found
     }
 
-    /**
-     * Extracts a specific integer query parameter with a fail-safe fallback.
-     * * @param resourceDescriptor The raw request path/query from the handshake
-     * @param key The name of the parameter to fetch (e.g., "buyIn")
-     * @param fallback The default value to return if parsing fails or parameter is missing
-     * @return The parsed integer or the fallback value
-     */
     private int extractIntQueryParam(String resourceDescriptor, String key, int fallback) {
         String valueStr = extractQueryParam(resourceDescriptor, key);
         if (valueStr == null || valueStr.isBlank()) {
@@ -358,6 +340,15 @@ public class PokerWebSocketServer extends WebSocketServer {
             // Log a warning if a user passes garbage data like "buyIn=twenty-five-hundred"
             System.err.println("[Network Warning] Failed to parse integer parameter '" + key + "' with value: '" + valueStr + "'. Falling back to: " + fallback);
             return fallback;
+        }
+    }
+
+    private void sendErrorToSocket(WebSocket conn, String errorMsg) {
+        try {
+            String json = objectMapper.writeValueAsString(new GameMessageDTO("ERROR", errorMsg));
+            conn.send(json);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
