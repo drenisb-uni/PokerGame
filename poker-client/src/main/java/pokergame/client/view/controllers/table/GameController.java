@@ -241,7 +241,7 @@ public class GameController {
         networkHandler.cleanup(); // Clean up EventBus listeners!
         OutboundActionPayload payload = new OutboundActionPayload("LEAVE_TABLE", 0);
         PokerWebSocketClient.getInstance().sendPayload(payload);
-        SceneManager.switchScene("Lobby.fxml");
+        SceneManager.switchScene("/fxml/Lobby.fxml");
     }
 
     // =================================================================================

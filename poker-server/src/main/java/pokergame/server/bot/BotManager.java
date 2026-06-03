@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public class BotManager implements IGameEventListener {
@@ -31,8 +32,10 @@ public class BotManager implements IGameEventListener {
     private final Map<String, BotPersonality> botPersonalities = new ConcurrentHashMap<>();
     private final Map<String, OpponentProfile> opponentProfiles = new ConcurrentHashMap<>();
 
-    // ARCHITECTURE FIX: Safe, managed timer pool for bot thinking delays
     private final ScheduledExecutorService botTimerPool = Executors.newScheduledThreadPool(2);
+
+    private final Map<String, ScheduledFuture<?>> pendingBotTurns = new ConcurrentHashMap<>();
+
     private final Random random = new Random();
     private int botCounter = 1;
 
@@ -76,19 +79,28 @@ public class BotManager implements IGameEventListener {
 
         int thinkingDelay = botBrain.calculateThinkingDelay(botSeat, amountToCall, gameEngine);
 
-        // ARCHITECTURE FIX: No more unmanaged threads. Schedule the action securely.
-        botTimerPool.schedule(() -> executeBotTurn(username, botSeat, amountToCall), thinkingDelay, TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> oldTurn = pendingBotTurns.remove(username);
+        if (oldTurn != null) {
+            oldTurn.cancel(false);
+        }
+
+        ScheduledFuture<?> scheduledTurn = botTimerPool.schedule(() -> {
+            try {
+                executeBotTurn(username, botSeat, amountToCall);
+            } finally {
+                pendingBotTurns.remove(username);
+            }
+        }, thinkingDelay, TimeUnit.MILLISECONDS);
+
+        pendingBotTurns.put(username, scheduledTurn);
     }
 
     private void executeBotTurn(String username, TableSeat botSeat, int amountToCall) {
-        // 1. Gather context
         BotPersonality personality = botPersonalities.getOrDefault(username, BotPersonality.BALANCED);
         OpponentProfile tableRead = getCombinedTableRead();
 
-        // 2. Ask Brain for decision
         BotDecision decision = botBrain.calculateDecision(botSeat, amountToCall, gameEngine, personality, tableRead);
 
-        // 3. Drop decision into the Actor Mailbox safely
         tableActor.tell(new PlayerActionMessage(username, decision.actionType(), decision.amount()));
     }
 
@@ -116,12 +128,16 @@ public class BotManager implements IGameEventListener {
 
     // --- Lifecycle and Cleanup ---
     public void shutdown() {
+        pendingBotTurns.values().forEach(future -> future.cancel(true));
+        pendingBotTurns.clear();
         botTimerPool.shutdownNow();
     }
 
-    // --- Unchanged Event Listeners ---
     @Override
     public void onPlayerAction(HandActionDTO action) {
+        pendingBotTurns.values().forEach(future -> future.cancel(false));
+        pendingBotTurns.clear();
+
         if (!botUsernames.contains(action.playerId())) {
             opponentProfiles.computeIfAbsent(action.playerId(), ignored -> new OpponentProfile()).record(action.actionType());
         }

@@ -93,6 +93,7 @@ public class TableNetworkMessageHandler {
 
                 case "PLAYER_ACTION" -> {
                     HandActionDTO action = mapper.treeToValue(payload, HandActionDTO.class);
+
                     animationEngine.queueVisualAction(action);
                 }
 
