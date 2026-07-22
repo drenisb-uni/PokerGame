@@ -1,3 +1,6 @@
+# ==========================================
+# Java / Maven / IntelliJ
+# ==========================================
 # Build outputs
 target/
 out/
@@ -12,3 +15,30 @@ out/
 # Logs and temporary files
 *.log
 *.tmp
+
+# ==========================================
+# Unity Client (poker-client-unity)
+# ==========================================
+# Unity generated cache & build folders (DO NOT COMMIT)
+**/[Ll]ibrary/
+**/[Tt]emp/
+**/[Oo]bj/
+**/[Bb]uild/
+**/[Bb]uilds/
+**/[Ll]ogs/
+**/[Mm]emoryCaptures/
+**/UserSettings/
+
+# OS / Unity local temp files
+**/ProjectSettings/ProjectVersion.txt
+
+# C# / Visual Studio / Rider / VS Code solution files
+**/*.csproj
+**/*.unityproj
+**/*.sln
+**/*.suo
+**/*.user
+**/*.userprefs
+**/*.pidb
+**/*.booproj
+**/.vs/
