@@ -8,29 +8,29 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
 import pokergame.domain.dto.GameMessageDTO;
-import pokergame.engine.commands.*;
-import pokergame.server.engine.GameCommandProcessor;
-import pokergame.server.service.GameNetworkService;
+import pokergame.server.engine.actor.TableActor;
+import pokergame.server.engine.actor.messages.PlayerActionMessage;
+import pokergame.server.service.LobbyManager;
 import pokergame.server.service.TokenValidationService;
 
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 public class PokerWebSocketServer extends WebSocketServer {
 
     private final SessionManager sessionManager;
-    private final GameCommandProcessor commandProcessor;
     private final TokenValidationService tokenService;
-    private final GameNetworkService gameNetworkService;
+    private final LobbyManager lobbyManager;
     private final ObjectMapper objectMapper;
 
-    public PokerWebSocketServer(int port, GameCommandProcessor processor, TokenValidationService tokenService, GameNetworkService gameNetworkService) {
+    public PokerWebSocketServer(int port, TokenValidationService tokenService, LobbyManager lobbyManager) {
         super(new InetSocketAddress(port));
         this.sessionManager = new SessionManager();
-        this.commandProcessor = processor;
         this.tokenService = tokenService;
-        this.gameNetworkService = gameNetworkService;
+        this.lobbyManager = lobbyManager;
+
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
@@ -49,24 +49,47 @@ public class PokerWebSocketServer extends WebSocketServer {
         }
 
         sessionManager.registerSession(playerId, conn);
-
-        // 2. CONCURRENCY SAFE: Queue the join action. Do not call gameEngine directly!
-        commandProcessor.queueCommand(new JoinTableCommand(playerId, buyIn));
     }
 
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
-        ClientConnection client = sessionManager.getConnectionBySocket(conn);
-        if (client != null) {
+        try {
+            ClientConnection client = sessionManager.getConnectionBySocket(conn);
+            if (client == null) return;
+
             String playerId = client.getPlayerId();
-            // 3. CONCURRENCY SAFE: Push the disconnect command to the queue loop
-            commandProcessor.queueCommand(new DisconnectPlayerCommand(playerId));
+            String activeTableId = client.getCurrentTableId();
+
+            System.out.println("[WebSocket Disconnect] Player " + playerId + " left. Code: " + code + ", Reason: " + reason);
+
+            if (activeTableId != null) {
+                TableActor tableActor = lobbyManager.getActorForTable(activeTableId);
+
+                if (tableActor != null) {
+                    // 2. CONCURRENCY SAFE: Dispatch a non-blocking disconnect notification to the loop mailbox.
+                    tableActor.tell(new PlayerActionMessage(playerId, "LEAVE_TABLE", 0));
+                    this.sessionManager.unbindPlayerFromTableRoom(playerId, activeTableId);
+
+                    // 3. LIFECYCLE MANAGEMENT: Clean up empty tables to avoid memory leaks.
+                    if (tableActor.getHumanPlayerCount() <= 1) {
+                        System.out.println("[Lobby Supervisor] Table " + activeTableId + " is now empty. Initiating teardown...");
+                        lobbyManager.destroyTable(activeTableId);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[WebSocket Error] Exception during player connection cleanup: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            // 4. ABSOLUTE GUARANTEE: Remove the web socket session mapping from memory
             sessionManager.removeSession(conn);
         }
     }
 
     @Override
     public void onMessage(WebSocket conn, String message) {
+        System.out.println("[SERVER TRACER] Incoming payload: " + message);
+
         try {
             ClientConnection client = sessionManager.getConnectionBySocket(conn);
             if (client == null) return;
@@ -77,47 +100,109 @@ public class PokerWebSocketServer extends WebSocketServer {
             String actionType = rootNode.get("action").asText().toUpperCase();
             String playerId = client.getPlayerId();
 
-            // 4. CONCURRENCY SAFE: Convert ALL table interactions into single-threaded commands
-            PlayerCommand command = switch (actionType) {
-                case "FOLD" -> new FoldCommand(playerId);
-                case "CALL" -> new CallCommand(playerId);
-                case "RAISE" -> {
-                    JsonNode amtNode = rootNode.get("amount");
-                    if (amtNode == null || !amtNode.isInt() || amtNode.asInt() <= 0) {
-                        throw new IllegalArgumentException("Raise amount must be a positive integer");
-                    }
-                    yield new RaiseCommand(playerId, amtNode.asInt());
-                }
-                case "JOIN_TABLE" -> {
-                    JsonNode amtNode = rootNode.get("amount");
-                    if (amtNode == null || !amtNode.isInt() || amtNode.asInt() <= 0) {
-                        throw new IllegalArgumentException("Buy in amount must be a positive integer");
-                    }
-                    yield new JoinTableCommand(playerId,  amtNode.asInt());
-                }
-                case "ADD_BOT" -> new AddBotCommand(playerId);
-                case "LEAVE_TABLE" -> new LeaveTableCommand(playerId);
-                case "REFRESH_TABLE" -> new RefreshSnapshotCommand(playerId);
-                default -> null;
-            };
+            // Safe extraction of buyIn if provided by the UI, default to 1000
+            int buyInAmount = rootNode.has("buyIn") ? rootNode.get("buyIn").asInt() : 1000;
 
-            if (command != null) {
-                commandProcessor.queueCommand(command);
+// ==========================================
+// 1. LOBBY ACTIONS (Room Lifecycle)
+// ==========================================
+            if (actionType.equals("CREATE_TABLE")) {
+                // Spawns and registers the thread-confined TableActor
+                String newTableId = lobbyManager.createNewTable();
+                conn.setAttachment(newTableId);
+                client.setCurrentTableId(newTableId);
+
+                // 👉 CHANGE: Securely bind the host player to the room roster FIRST
+                sessionManager.bindPlayerToTableRoom(playerId, newTableId);
+
+                // Confirm room creation to host with their 6-letter code
+                GameMessageDTO response = new GameMessageDTO("TABLE_CREATED", Map.of("tableId", newTableId));
+
+                // 👉 WHY: This will now succeed because the room roster contains the playerId!
+                broadcastToTablePlayer(newTableId, playerId, response);
+
+                // Grab the running Actor boundary for this specific table
+                TableActor tableActor = lobbyManager.getActorForTable(newTableId);
+                if (tableActor == null) {
+                    sendErrorToSocket(conn, "Critical Error: Failed to start table session actor.");
+                    return;
+                }
+
+                // Queue the host to join via Actor Message Protocol
+                tableActor.tell(new PlayerActionMessage(playerId, "JOIN_TABLE", buyInAmount));
+
+                // Extract bot count and dispatch individual addition messages down to the loop
+                int botCount = rootNode.has("botCount") ? rootNode.get("botCount").asInt() : 0;
+                for (int i = 0; i < botCount; i++) {
+                    tableActor.tell(new PlayerActionMessage(playerId, "ADD_BOT", 0));
+                }
+
+                return;
             }
+
+            if (actionType.equals("JOIN_TABLE")) {
+                String targetTableId = rootNode.get("tableId").asText().toUpperCase();
+
+                // Validate that the Actor exists under the Lobby Supervisor manager registry
+                TableActor tableActor = lobbyManager.getActorForTable(targetTableId);
+
+                if (tableActor != null) {
+                    client.setCurrentTableId(targetTableId);
+
+                    // 👉 CHANGE: Securely bind the joining player to the room roster FIRST
+                    this.sessionManager.bindPlayerToTableRoom(playerId, targetTableId);
+                    System.out.println("[WebSocket] Linked connection for " + playerId + " to room tracking registry: " + targetTableId);
+
+                    // Confirm join approval back to client socket
+                    GameMessageDTO response = new GameMessageDTO("TABLE_JOINED", Map.of("tableId", targetTableId));
+
+                    // 👉 CHANGE: Swapped out raw conn.send for the refactored, unified broadcaster method
+                    broadcastToTablePlayer(targetTableId, playerId, response);
+
+                    // Safe Async Ingestion: Drop message into the targeted room Actor Mailbox
+                    tableActor.tell(new PlayerActionMessage(playerId, "JOIN_TABLE", buyInAmount));
+                } else {
+                    sendErrorToSocket(conn, "Table " + targetTableId + " does not exist or has expired.");
+                }
+                return;
+            }
+
+            // ==========================================
+            // 2. IN-GAME ACTIONS (Gameplay Guard & Route)
+            // ==========================================
+            String activeTableId = client.getCurrentTableId();
+            if (activeTableId == null) {
+                sendErrorToSocket(conn, "Action rejected: You are not currently seated at a table.");
+                return;
+            }
+
+            // ARCHITECTURE REFACTOR: Fetch the isolated TableActor instead of the old shared processor
+            TableActor tableActor = lobbyManager.getActorForTable(activeTableId);
+            if (tableActor == null) {
+                sendErrorToSocket(conn, "Action rejected: Your table session has expired or closed.");
+                return;
+            }
+
+            // Extract amount safely. Defaults to 0 if not provided (e.g., for FOLD or CALL)
+            int amount = 0;
+            JsonNode amtNode = rootNode.get("amount");
+            if (amtNode != null && amtNode.isInt()) {
+                amount = amtNode.asInt();
+            }
+
+            // Gateway validation: Fail fast on obviously bad network data before consuming actor mailbox capacity
+            if (("RAISE".equals(actionType) || "ALL_IN".equals(actionType)) && amount <= 0) {
+                throw new IllegalArgumentException("Raise amount must be a positive integer.");
+            }
+
+            // SUCCESS: Fire-and-forget message passing!
+            // The Actor thread handles ALL validation and execution sequencing safely within its boundary.
+            tableActor.tell(new PlayerActionMessage(playerId, actionType, amount));
 
         } catch (IllegalArgumentException e) {
             sendErrorToSocket(conn, "Invalid payload configuration: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("Malformed data dropped: " + e.getMessage());
-        }
-    }
-
-
-    private void sendErrorToSocket(WebSocket conn, String errorMsg) {
-        try {
-            String json = objectMapper.writeValueAsString(new GameMessageDTO("ERROR", errorMsg));
-            conn.send(json);
-        } catch (Exception e) {
+            System.err.println("[WebSocket] Malformed data dropped from client: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -132,10 +217,6 @@ public class PokerWebSocketServer extends WebSocketServer {
         System.out.println("Poker WebSocket Server successfully bound and running on port: " + getPort());
     }
 
-    /**
-     * Broadcasts a properly serialized JSON message to ALL connected clients.
-     * Use this for global table snapshots and community card reveals.
-     */
     public void broadcastMessage(GameMessageDTO message) {
         try {
             // THIS is where the magic happens. Converts the DTO/Map into perfect JSON.
@@ -147,41 +228,72 @@ public class PokerWebSocketServer extends WebSocketServer {
                     conn.send(jsonString);
                 }
             }
+
         } catch (Exception e) {
             System.err.println("[WebSocket] FATAL: Broadcast serialization failed: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    /**
-     * Sends a properly serialized JSON message to a SPECIFIC player.
-     * Use this for private messages like hole cards or error notifications.
-     */
-    public void sendMessageToPlayer(String playerId, GameMessageDTO message) {
+    public void broadcastToTablePlayer(String targetTableId, String playerId, GameMessageDTO message) {
+        if (targetTableId == null || targetTableId.isBlank()) {
+            System.err.println("[WebSocket Broadcaster] Aborted targeted message: targetTableId is null or empty.");
+            return;
+        }
         try {
-            ClientConnection client = sessionManager.getConnectionByPlayerId(playerId);
-            if (client != null && client.getSocket().isOpen()) {
+            // 1. Verify table layout occupancy directly using the clear roster map instead of attachments
+            java.util.Set<String> roomRoster = sessionManager.getPlayersInRoom(targetTableId);
 
-                // Serialize specifically for this player
+            if (!roomRoster.contains(playerId)) {
+                System.out.println("[WebSocket] Dropped targeted message for " + playerId + " (Player is not recorded at table " + targetTableId + ")");
+                return;
+            }
+
+            // 2. Fetch the client connection wrapper seamlessly by Player Id reference
+            ClientConnection client = sessionManager.getConnectionByPlayerId(playerId);
+
+            if (client != null && client.getSocket() != null && client.getSocket().isOpen()) {
                 String jsonString = objectMapper.writeValueAsString(message);
                 client.getSocket().send(jsonString);
-
             } else {
-                System.out.println("[WebSocket] Dropped message for " + playerId + " (Not connected)");
+                System.out.println("[WebSocket] Dropped message for " + playerId + " (Not connected or connection dead)");
             }
         } catch (Exception e) {
-            System.err.println("[WebSocket] FATAL: Targeted message serialization failed for " + playerId + ": " + e.getMessage());
+            System.err.println("[WebSocket] FATAL: Targeted message serialization/sending failed for " + playerId + ": " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    /**
-     * Extracts a specific string query parameter from a URI / resource descriptor.
-     * Supports format: "/?token=abc&buyIn=1000" or raw query segments.
-     * * @param resourceDescriptor The raw request path/query from the handshake
-     * @param key The name of the parameter to fetch (e.g., "token")
-     * @return The decoded string value, or null if not found/malformed
-     */
+    public void broadcastToTable(String targetTableId, GameMessageDTO message) {
+        if (targetTableId == null || targetTableId.isBlank()) {
+            System.err.println("[WebSocket Broadcaster] Aborted broadcast: targetTableId is null or empty.");
+            return;
+        }
+
+        try {
+            // 1. Pull the unique list of players assigned to this room context
+            java.util.Set<String> roomRoster = sessionManager.getPlayersInRoom(targetTableId);
+            if (roomRoster.isEmpty()) return;
+
+            String jsonMessage = objectMapper.writeValueAsString(message);
+
+            // 2. Optimization: Loop directly through the room's targeted users instead of scanning every player globally!
+            for (String playerId : roomRoster) {
+                ClientConnection client = sessionManager.getConnectionByPlayerId(playerId);
+
+                if (client != null && client.getSocket() != null && client.getSocket().isOpen()) {
+                    client.getSocket().send(jsonMessage);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[WebSocket Broadcaster] Failed to serialize or broadcast message: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void broadcastToTableExcluding(String tableId, String username, GameMessageDTO broadcast) {
+    }
+
     private String extractQueryParam(String resourceDescriptor, String key) {
         if (resourceDescriptor == null || key == null || resourceDescriptor.isBlank()) {
             return null;
@@ -216,13 +328,6 @@ public class PokerWebSocketServer extends WebSocketServer {
         return null; // Parameter not found
     }
 
-    /**
-     * Extracts a specific integer query parameter with a fail-safe fallback.
-     * * @param resourceDescriptor The raw request path/query from the handshake
-     * @param key The name of the parameter to fetch (e.g., "buyIn")
-     * @param fallback The default value to return if parsing fails or parameter is missing
-     * @return The parsed integer or the fallback value
-     */
     private int extractIntQueryParam(String resourceDescriptor, String key, int fallback) {
         String valueStr = extractQueryParam(resourceDescriptor, key);
         if (valueStr == null || valueStr.isBlank()) {
@@ -235,6 +340,15 @@ public class PokerWebSocketServer extends WebSocketServer {
             // Log a warning if a user passes garbage data like "buyIn=twenty-five-hundred"
             System.err.println("[Network Warning] Failed to parse integer parameter '" + key + "' with value: '" + valueStr + "'. Falling back to: " + fallback);
             return fallback;
+        }
+    }
+
+    private void sendErrorToSocket(WebSocket conn, String errorMsg) {
+        try {
+            String json = objectMapper.writeValueAsString(new GameMessageDTO("ERROR", errorMsg));
+            conn.send(json);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

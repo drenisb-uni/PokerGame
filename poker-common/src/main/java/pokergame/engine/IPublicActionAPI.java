@@ -14,4 +14,5 @@ public interface IPublicActionAPI {
     // --- System Automation Actions ---
     void AddBot();
     void RefreshSnapshot(String playerId);
+    void StartHand();
 }

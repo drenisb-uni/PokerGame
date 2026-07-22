@@ -1,15 +1,19 @@
 package pokergame.client.network;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import javafx.application.Platform;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
+import pokergame.GameContext;
 import pokergame.client.utils.EventBus;
+import pokergame.client.view.SceneManager;
 import pokergame.domain.dto.GameMessageDTO;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
 
 public class PokerWebSocketClient extends WebSocketClient {
 
@@ -67,14 +71,52 @@ public class PokerWebSocketClient extends WebSocketClient {
 
     @Override
     public void onMessage(String message) {
-        Platform.runLater(() -> {
-            try {
-                GameMessageDTO envelope = mapper.readValue(message, GameMessageDTO.class);
-                EventBus.publish(envelope);
-            } catch (Exception e) {
-                System.err.println("Failed to parse incoming game message.");
+        System.out.println("[CLIENT NETWORK TRACER] Server says: " + message);
+
+        try {
+            // 1. PARSE ON THE NETWORK THREAD: Avoid blocking the JavaFX thread with JSON parsing
+            GameMessageDTO envelope = mapper.readValue(message, GameMessageDTO.class);
+
+            String actionType = envelope.type();
+            Object rawPayload = envelope.payload();
+
+            // 2. BROADCAST TO GAMEPLAY LISTENERS: Hand off to the EventBus for controllers to process
+            EventBus.publish(envelope);
+
+            if ("TABLE_CREATED".equals(actionType) || "TABLE_JOINED".equals(actionType)) {
+
+                JsonNode payloadNode = mapper.valueToTree(rawPayload);
+
+                if (payloadNode != null && payloadNode.has("tableId")) {
+                    String inviteCode = payloadNode.get("tableId").asText();
+
+                    GameContext.setCurrentTableId(inviteCode);
+
+                    Platform.runLater(() -> {
+                        System.out.println("[WebSocket] Room confirmed. Swapping UI to GameTable.fxml");
+                        SceneManager.switchScene("GameTable.fxml");
+                    });
+                }
             }
-        });
+
+            if ("TABLE_SNAPSHOT".equals(actionType)) {
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> snapshotData = (Map<String, Object>) envelope.payload();
+                GameContext.setLastTableSnapshot(snapshotData);
+
+                if (GameContext.getCurrentTableId() == null) {
+                    JsonNode payloadNode = mapper.valueToTree(rawPayload);
+                    if (payloadNode != null && payloadNode.has("tableId"))
+                        GameContext.setCurrentTableId(payloadNode.get("tableId").asText());
+                }
+            }
+
+
+        } catch (Exception e) {
+            System.err.println("[WebSocket] ❌ Failed to process incoming server message: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     @Override

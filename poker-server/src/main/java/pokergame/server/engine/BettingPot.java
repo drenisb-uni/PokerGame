@@ -2,6 +2,8 @@ package pokergame.server.engine;
 
 import pokergame.server.domain.model.TableSeat;
 
+import java.util.List;
+
 public class BettingPot {
     private int potSize = 0;
     private int foldedPot = 0;
@@ -17,27 +19,40 @@ public class BettingPot {
         this.highestBetThisRound = 0;
 
         for (TableSeat seat : tableManager.getSeats()) {
+            if (seat == null) continue;
             seat.setRoundBet(0);
         }
     }
 
     public void collectBlinds(TableManager tableManager) {
-        int sbIndex = (tableManager.getDealerIndex() + 1) % tableManager.size();
-        int bbIndex = (tableManager.getDealerIndex() + 2) % tableManager.size();
+        int dealerIndex = tableManager.getDealerIndex();
 
+        // 1. Find the Small Blind (First actual player after the dealer)
+        int sbIndex = tableManager.getNextActivePlayerIndex(dealerIndex);
         TableSeat sbSeat = tableManager.getSeatAt(sbIndex);
+
+        // 2. Find the Big Blind (First actual player after the Small Blind)
+        int bbIndex = tableManager.getNextActivePlayerIndex(sbIndex);
+        TableSeat bbSeat = tableManager.getSeatAt(bbIndex);
+
+        // 3. Find "Under the Gun" (First actual player after the Big Blind to act pre-flop)
+        int utgIndex = tableManager.getNextActivePlayerIndex(bbIndex);
+
+        // --- Process Small Blind ---
         sbSeat.bet(smallBlindAmount);
         sbSeat.setRoundBet(smallBlindAmount);
 
-        TableSeat bbSeat = tableManager.getSeatAt(bbIndex);
+        // --- Process Big Blind ---
         int bigBlindAmount = smallBlindAmount * 2;
         bbSeat.bet(bigBlindAmount);
         bbSeat.setRoundBet(bigBlindAmount);
 
+        // --- Update Pot Math ---
         potSize += (smallBlindAmount + bigBlindAmount);
         highestBetThisRound = bigBlindAmount;
 
-        tableManager.setCurrentPlayerIndex((bbIndex + 1) % tableManager.size());
+        // --- Safely Set the Next Turn! ---
+        tableManager.setCurrentPlayerIndex(utgIndex);
         playersToAct = tableManager.getActivePlayerCount();
     }
 
@@ -54,21 +69,23 @@ public class BettingPot {
         decrementPlayersToAct();
     }
 
-    public void handleRaise(TableSeat actor, int raiseAmount, int activePlayersCount) {
-        int raiseTotalAmount = raiseAmount + actor.getCurrentRoundBet();
-        actor.bet(raiseAmount);
-        actor.setRoundBet(raiseTotalAmount);
-        potSize += raiseAmount;
-        highestBetThisRound = raiseTotalAmount;
+    public void handleRaise(TableSeat actor, int raiseToTarget, int activePlayersCount) {
+        int additionalChipsToDeduct = raiseToTarget - actor.getCurrentRoundBet();
 
-        // Reset the loop tracker: everyone else must respond to this raise
-        playersToAct = activePlayersCount - 1;
+        actor.bet(additionalChipsToDeduct);
+        actor.setRoundBet(raiseToTarget); // Their new total round contribution
+
+        this.potSize += additionalChipsToDeduct;
+        this.highestBetThisRound = raiseToTarget; // The new ceiling everyone must match
+
+        this.playersToAct = activePlayersCount - 1;
     }
 
     public boolean isRoundComplete(TableManager tableManager) {
         if (playersToAct > 0) return false;
 
         for (TableSeat seat : tableManager.getSeats()) {
+            if (seat == null) continue;
             if (!seat.isFolded() && seat.getCurrentRoundBet() != highestBetThisRound) {
                 return false;
             }
@@ -76,10 +93,15 @@ public class BettingPot {
         return true;
     }
 
-    public void awardPotToWinners(java.util.List<TableSeat> winners) {
+    public void awardPotToWinners(List<TableSeat> winners) {
         int splitPot = potSize / winners.size();
-        for (TableSeat winner : winners) {
-            winner.addChipsOnTable(splitPot);
+        int oddChips = potSize % winners.size(); // Get the leftover chips!
+
+        for (int i = 0; i < winners.size(); i++) {
+            int amountToAward = splitPot;
+            if (i == 0) amountToAward += oddChips; // Give the extra chips to the first winner
+
+            winners.get(i).addChipsOnTable(amountToAward);
         }
     }
 

@@ -1,8 +1,6 @@
 package pokergame.server.engine;
 
 import pokergame.domain.model.*;
-import pokergame.domain.dto.HandActionDTO;
-import pokergame.domain.dto.HandHistoryDTO;
 import pokergame.domain.dto.HandParticipantDTO;
 import pokergame.domain.dto.PlayerProfileDTO;
 import pokergame.engine.GameState;
@@ -12,83 +10,86 @@ import pokergame.engine.commands.PlayerCommand;
 import pokergame.server.bot.BotManager;
 import pokergame.server.domain.model.Deck;
 import pokergame.server.domain.model.TableSeat;
-import pokergame.server.domain.repository.IGameRepository;
 import pokergame.server.domain.repository.IPlayerRepository;
 import pokergame.domain.rules.*;
 import pokergame.server.domain.rules.HandRanker;
+import pokergame.server.engine.actor.TableActor;
 
-import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class PokerGameEngine implements IPublicActionAPI {
+
+    // Note: The scheduler remains static, but its executions will now lock on the specific engine instance
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
     private static final int MAX_SEATS = 6;
     private static final int DEFAULT_BUY_IN = 1000;
 
     private final IPlayerRepository playerRepository;
-    private final IGameRepository gameRepository;
     private final TableManager tableManager = new TableManager();
     private final BettingPot bettingPot = new BettingPot();
     private final GameEventBroadcaster broadcaster = new GameEventBroadcaster();
-    private final BotManager botManager = new BotManager(new GameCommandProcessor(this), this);
-
     private final Deck deck = new Deck();
     private final List<Card> communityCards = new ArrayList<>();
     private GameState currentState = GameState.WAITING_FOR_PLAYERS;
     private String currentHandId;
-    private LocalDateTime currentHandStartedAt;
-    private int historyTableId = 0;
     private boolean nextHandScheduled = false;
     private int tableBuyIn = DEFAULT_BUY_IN;
-    private final Map<String, Integer> handStartChipsByUsername = new HashMap<>();
-    private final Set<String> currentWinnerUsernames = new HashSet<>();
-    private String currentWinningHandRank = "";
+    private String tableId;
+
+    private List<TableSeat> winners;
 
     public PokerGameEngine(IPlayerRepository playerRepository) {
-        this(playerRepository, null);
-    }
-
-    public PokerGameEngine(IPlayerRepository playerRepository, IGameRepository gameRepository) {
         this.playerRepository = playerRepository;
-        this.gameRepository = gameRepository;
         this.broadcaster.setGameEngine(this);
     }
 
-    public synchronized void startNewHand() {
-        if (tableManager.size() < 2 || currentState == GameState.PRE_FLOP_BETTING
-                || currentState == GameState.FLOP_BETTING || currentState == GameState.TURN_BETTING
-                || currentState == GameState.RIVER_BETTING) {
+
+    // --- SYNCHRONIZED PUBLIC API BOUNDARY ---
+    public void startNewHand() {
+        if (tableManager.size() < 2 || isHandInProgress()) {
+            System.out.println("[Engine] Cannot start new hand: Not enough players or hand already active.");
             return;
+        }
+
+        long activePlayerCount = this.tableManager.getSeats().stream()
+                .filter(java.util.Objects::nonNull) // 1. Filter out empty seat elements first
+                .filter(seat -> seat.getProfile() != null) // 2. Now it is completely safe to inspect profiles
+                .count();
+
+        if (activePlayerCount < 2) {
+            System.out.println("[Engine Warning] Cannot start hand: At least 2 players must be seated. (Current: " + activePlayerCount + ")");
+            return; // Fail-safe exit. Do not process blinds.
         }
 
         nextHandScheduled = false;
         currentHandId = UUID.randomUUID().toString();
-        currentHandStartedAt = LocalDateTime.now();
         communityCards.clear();
         bettingPot.clearPot();
-        handStartChipsByUsername.clear();
-        currentWinnerUsernames.clear();
-        currentWinningHandRank = "";
+        deck.reset();
+        deck.shuffleDeck();
 
-        tableManager.getSeats().forEach(seat -> {
+        List<TableSeat> activeSeats = getActiveSeats();
+
+        for (TableSeat seat : activeSeats) {
             seat.setFolded(false);
             seat.setRoundBet(0);
             seat.clearCards();
-            handStartChipsByUsername.put(seat.getUsername(), seat.getChipsOnTable());
-        });
+        }
 
-        deck.reset();
-        deck.shuffleDeck();
-        saveStartedHand();
-        // Deal cards
-        for (int i = 0; i < 2; i++) {
-            for (TableSeat seat : tableManager.getSeats()) {
-                seat.setHoleCards(deck.getNextCard());
-            }
+        for (TableSeat seat : activeSeats) {
+            seat.setHoleCards(deck.getNextCard());
+            seat.setHoleCards(deck.getNextCard());
+            broadcaster.broadcastHoleCards(seat.getHoleCards());
         }
 
         currentState = GameState.PRE_FLOP_BETTING;
         bettingPot.collectBlinds(tableManager);
+
         broadcaster.broadcastGameState(currentState);
+        broadcaster.broadcastTableSnapshot();
         broadcastBlindActions();
         promptNextPlayer();
     }
@@ -97,11 +98,9 @@ public class PokerGameEngine implements IPublicActionAPI {
         command.execute(this);
     }
 
-    // --- IPublicActionAPI Implementations ---
-
     @Override
-    public void Fold(String actorUsername) {
-        TableSeat actor = validateAndGetActor(actorUsername);
+    public void Fold(String actorId) {
+        TableSeat actor = validateAndGetActor(actorId);
         if (actor == null) return;
 
         bettingPot.handleFold(actor);
@@ -110,8 +109,8 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     @Override
-    public void Call(String actorUsername) {
-        TableSeat actor = validateAndGetActor(actorUsername);
+    public void Call(String actorId) {
+        TableSeat actor = validateAndGetActor(actorId);
         if (actor == null) return;
 
         int broadcastAmount = bettingPot.getHighestBet() - actor.getCurrentRoundBet();
@@ -122,8 +121,8 @@ public class PokerGameEngine implements IPublicActionAPI {
     }
 
     @Override
-    public void Raise(String actorUsername, int amount) {
-        TableSeat actor = validateAndGetActor(actorUsername);
+    public void Raise(String actorId, int amount) {
+        TableSeat actor = validateAndGetActor(actorId);
         if (actor == null) return;
 
         bettingPot.handleRaise(actor, amount, tableManager.getActivePlayerCount());
@@ -131,53 +130,39 @@ public class PokerGameEngine implements IPublicActionAPI {
         broadcaster.broadcastAction(actor, "RAISE", amount, currentState, currentHandId);
         advanceTurn();
     }
+
     @Override
     public void JoinTable(String playerId, int buyIn) {
         boolean seatedSuccessfully = false;
 
-        // ROUTE 1: Is this a bot?
         if (playerId != null && playerId.startsWith("Bot_")) {
-            // Route directly to the bot seating method we just created
             seatedSuccessfully = tableManager.sitBot(playerId, buyIn);
-            System.out.println("[Engine] " + playerId + " successfully joined the table.");
-
+            System.out.println("[Engine] BOT: " + playerId + " successfully joined the table.");
         } else {
-            // ROUTE 2: It is a real human.
-            // We must fetch their real profile from the database/memory repository!
-            // (Assuming your Engine has access to a playerRepository or similar service)
             PlayerProfileDTO actualProfile = playerRepository.findProfileById(playerId);
 
             if (actualProfile != null) {
-                // Pass the rich DTO to the real player seating method
                 seatedSuccessfully = tableManager.sitRealPlayer(actualProfile, buyIn);
+                broadcaster.broadcastTableSnapshot();
             } else {
                 System.err.println("[Engine] Failed to join: No database profile found for ID " + playerId);
-                return; // Abort, don't broadcast anything.
+                return;
             }
         }
 
-//        HandActionDTO persistedAction = broadcaster.broadcastAction(actor, actionType, broadcastAmount, currentState, currentHandId);
-//        saveHandAction(persistedAction);
-//        advanceTurn();
-
-        // Only broadcast the massive table snapshot if they ACTUALLY sat down
-        // (e.g., skipping the broadcast if the table was full or they were already seated)
         if (seatedSuccessfully) {
             System.out.println("[Engine] " + playerId + " successfully joined the table.");
-
-            // Broadcast to everyone that the table composition has changed!
             broadcaster.broadcastTableSnapshot();
 
-            // OPTIONAL: If this was the second person to join, you might want to auto-start the hand!
-            // if (tableManager.getActivePlayerCount() >= 2 && currentState == GameState.WAITING_FOR_PLAYERS) {
-            //     startNewHand();
-            // }
+            if (tableManager.getActivePlayerCount() >= 6 && currentState == GameState.WAITING_FOR_PLAYERS) {
+                startNewHand();
+            }
         }
     }
 
     @Override
     public void LeaveTable(String playerId) {
-        leavePlayer(playerId); // Uses your existing safe leave logic
+        leavePlayer(playerId);
         broadcaster.broadcastTableSnapshot();
     }
 
@@ -191,47 +176,92 @@ public class PokerGameEngine implements IPublicActionAPI {
 
     @Override
     public void AddBot() {
-        botManager.spawnAndSeatBot(tableBuyIn);
         broadcaster.broadcastTableSnapshot();
     }
 
     @Override
     public void RefreshSnapshot(String playerId) {
-        broadcaster.sendTargetedSnapshot(playerId);
-    }
+        broadcaster.sendTargetedSnapshot(playerId, "");
 
-    private TableSeat validateAndGetActor(String username) {
-        TableSeat actor = tableManager.getCurrentPlayer();
-        if (actor == null || !actor.getUsername().equals(username)) {
-            System.err.println("[Engine Warning] Ignored out-of-turn action from: " + username);
-            return null;
+        if (isHandInProgress()) {
+            TableSeat actor = tableManager.getCurrentPlayer();
+            if (actor != null) {
+                int amountToCall = bettingPot.getHighestBet() - actor.getCurrentRoundBet();
+                broadcaster.broadcastTurnPrompt(actor, amountToCall);
+            }
         }
-        return actor;
     }
 
-    public synchronized void leavePlayer(String username) {
-        TableSeat seat = tableManager.findByUsername(username).orElse(null);
-        if (seat == null) {
+    @Override
+    public void StartHand() {
+        startNewHand();
+    }
+
+    public void configureTableBuyIn(int buyIn) {
+        if (!isBetweenHands() || tableManager.size() > 0) {
             return;
         }
 
-        if (isBetweenHands()) {
-            updateTrackedBankrolls();
-            tableManager.removeByUsername(username);
-            broadcaster.broadcastGameState(currentState);
+        this.tableBuyIn = Math.max(1, buyIn);
+        bettingPot.setSmallBlindAmount(Math.max(1, this.tableBuyIn / 50));
+    }
+
+    public TableSeat sitPlayerDown(String id, int chips, int idx) {
+        return tableManager.findByUsername(id).orElseGet(() -> {
+            int seatIndex = idx >= 0 ? idx : findFirstOpenSeatIndex();
+            if (seatIndex < 0 || seatIndex >= tableManager.size()) {
+                System.err.println("[Engine] Cannot sit player " + id + ": Table is full or index invalid.");
+                return null;
+            }
+
+            PlayerProfileDTO profile = loadSeatProfile(id, chips);
+            if (profile == null) {
+                System.err.println("[Engine] Cannot sit player " + id + ": Profile failed to load.");
+                return null;
+            }
+
+            TableSeat seat = new TableSeat(profile, chips);
+            if (playerRepository != null && profile.email() != null) {
+                int bankrollBase = profile.totalBankroll() - chips;
+                seat.trackBankrollFromBase(bankrollBase);
+                saveBankroll(profile, bankrollBase);
+            }
+
+            seat.setSeatIndex(seatIndex);
+            tableManager.getSeats().set(seatIndex, seat);
+            broadcaster.broadcastSeatOccupied(seat, currentHandId);
+
+            System.out.println("[Engine] Successfully seated " + id + " at index " + seatIndex);
+            return seat;
+        });
+    }
+
+    public TableSeat sitPlayerDown(String id) {
+        return sitPlayerDown(id, tableBuyIn, -1);
+    }
+
+
+    // --- INTERNAL PRIVATE LOGIC (Protected by public synchronized boundaries) ---
+    private void scheduleNextHand() {
+        if (nextHandScheduled || tableManager.size() < 2) return;
+        nextHandScheduled = true;
+
+        // THE SCHEDULER FIX: We must lock the engine instance when the background thread fires!
+        scheduler.schedule(() -> {
+            synchronized (this) {
+                startScheduledHandIfReady();
+            }
+        }, 15, TimeUnit.SECONDS);
+    }
+
+    private void startScheduledHandIfReady() {
+        if (tableManager.size() >= 2 && currentState == GameState.HAND_OVER) {
+            startNewHand();
             return;
         }
 
-        boolean wasCurrentPlayer = tableManager.getCurrentPlayer().getUsername().equals(username);
-        if (!seat.isFolded()) {
-            bettingPot.handleFold(seat);
-            HandActionDTO action = broadcaster.broadcastAction(seat, "LEFT TABLE", 0, currentState, currentHandId);
-            saveHandAction(action);
-        }
-
-        if (tableManager.getActivePlayerCount() <= 1 || wasCurrentPlayer || bettingPot.isRoundComplete(tableManager)) {
-            advanceTurn();
-        }
+        nextHandScheduled = false;
+        startHandIfReady();
     }
 
     private void advanceTurn() {
@@ -286,9 +316,6 @@ public class PokerGameEngine implements IPublicActionAPI {
     private void handleEarlyWin() {
         tableManager.getActivePlayers().stream().findFirst().ifPresent(winner -> {
             winner.addChipsOnTable(bettingPot.getPotSize());
-            currentWinnerUsernames.clear();
-            currentWinnerUsernames.add(winner.getUsername());
-            currentWinningHandRank = "FOLD";
             broadcaster.broadcastResult(List.of(winner), null, bettingPot.getPotSize());
         });
         endHand();
@@ -305,27 +332,136 @@ public class PokerGameEngine implements IPublicActionAPI {
         }
 
         HandResult bestResult = playerResults.values().stream().max(HandResult::compareTo).orElseThrow();
-        List<TableSeat> winners = activePlayers.stream()
+
+        winners = activePlayers.stream()
                 .filter(seat -> playerResults.get(seat).compareTo(bestResult) == 0).toList();
 
         bettingPot.awardPotToWinners(winners);
-        currentWinnerUsernames.clear();
-        winners.forEach(winner -> currentWinnerUsernames.add(winner.getUsername()));
-        currentWinningHandRank = bestResult.getType().name();
         broadcaster.broadcastResult(winners, bestResult, bettingPot.getPotSize());
         endHand();
     }
 
     private void endHand() {
         currentState = GameState.HAND_OVER;
-        saveCompletedHand();
         updateTrackedBankrolls();
         broadcaster.broadcastGameState(currentState);
         tableManager.rotateDealer();
         scheduleNextHand();
     }
 
-    // Pass-through getters for tests
+    public synchronized void leavePlayer(String identifier) {
+        TableSeat seat = tableManager.findByIdOrUsername(identifier).orElse(null);
+
+        if (seat == null) {
+            System.err.println("[Engine] Ignored leave request: Player " + identifier + " is not at the table.");
+            return;
+        }
+
+        System.out.println("[Engine] Successfully found player " + identifier + " in Seat " + seat.getSeatIndex() + ". Removing...");
+
+        if (seat.isBankrollTracked()) {
+            // Handled during updateTrackedBankrolls
+        }
+
+        if (isBetweenHands()) {
+            updateTrackedBankrolls();
+            tableManager.removeById(identifier);
+            broadcaster.broadcastTableSnapshot();
+            return;
+        }
+
+        boolean wasCurrentPlayer = tableManager.getCurrentPlayer() != null &&
+                tableManager.getCurrentPlayer().equals(seat);
+
+        if (!seat.isFolded()) {
+            bettingPot.handleFold(seat);
+            seat.setFolded(true);
+            broadcaster.broadcastAction(seat, "LEFT TABLE", 0, currentState, currentHandId);
+        }
+
+        updateTrackedBankrolls();
+        tableManager.removeById(identifier);
+
+        if (tableManager.getActivePlayerCount() <= 1) {
+            handleEarlyWin();
+        } else if (wasCurrentPlayer || bettingPot.isRoundComplete(tableManager)) {
+            advanceTurn();
+        } else {
+            broadcaster.broadcastTableSnapshot();
+        }
+        pauseIfNoHumansLeft();
+    }
+
+    public void pauseIfNoHumansLeft() {
+        boolean humanFound = false;
+
+        for (TableSeat seat : tableManager.getSeats()) {
+            if (seat != null && seat.getProfile() != null) {
+                String username = seat.getProfile().username();
+                if (username != null && !username.startsWith("Bot_")) {
+                    humanFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (!humanFound) {
+            System.out.println("[Engine] Last human left. Evicting bots and pausing game...");
+
+            for (int i = 0; i < tableManager.getSeats().size(); i++) {
+                TableSeat seat = tableManager.getSeats().get(i);
+                if (seat != null && seat.getProfile() != null) {
+                    if (seat.getProfile().username().startsWith("Bot_")) {
+                        tableManager.getSeats().set(i, null);
+                    }
+                }
+            }
+
+            currentState = GameState.WAITING_FOR_PLAYERS;
+            bettingPot.clearPot();
+        }
+    }
+
+
+    // --- SAFE READ-ONLY HELPERS ---
+    private boolean isBetweenHands() {
+        return currentState == GameState.WAITING_FOR_PLAYERS || currentState == GameState.HAND_OVER;
+    }
+
+    private boolean isHandInProgress() {
+        return currentState == GameState.PRE_FLOP_BETTING
+                || currentState == GameState.FLOP_BETTING
+                || currentState == GameState.TURN_BETTING
+                || currentState == GameState.RIVER_BETTING;
+    }
+
+    private List<TableSeat> getActiveSeats() {
+        return tableManager.getSeats().stream()
+                .filter(seat -> seat != null && seat.getProfile() != null)
+                .toList();
+    }
+
+    private TableSeat validateAndGetActor(String id) {
+        TableSeat actor = tableManager.getCurrentPlayer();
+        if (actor == null || !actor.getProfile().id().equals(id)) {
+            System.err.println("[Engine Warning] Ignored out-of-turn action from: " + id);
+            return null;
+        }
+        return actor;
+    }
+
+    public synchronized void startHandIfReady() {
+        if (currentState == GameState.HAND_OVER && nextHandScheduled) {
+            return;
+        }
+
+        if (tableManager.size() >= 6 && isBetweenHands()) {
+            startNewHand();
+        }
+    }
+
+    // Pass-through getters and remaining non-mutating methods...
+
     public int getPotSize() { return bettingPot.getPotSize(); }
     public int getHighestCurrentBet() { return bettingPot.getHighestBet(); }
     public TableSeat getPlayerByUsername(String name) { return tableManager.findByUsername(name).orElse(null); }
@@ -334,94 +470,8 @@ public class PokerGameEngine implements IPublicActionAPI {
     public int getTableBuyIn() { return tableBuyIn; }
     public int getSmallBlindAmount() { return bettingPot.getSmallBlindAmount(); }
     public int getBigBlindAmount() { return bettingPot.getBigBlindAmount(); }
-    public List<Card> getCommunityCards() { return List.copyOf(communityCards); }
+    public synchronized List<Card> getCommunityCards() { return List.copyOf(communityCards); }
     public void addObserver(IGameEventListener obs) { broadcaster.addObserver(obs); }
-
-    public synchronized void configureTableBuyIn(int buyIn) {
-        if (!isBetweenHands() || tableManager.size() > 0) {
-            return;
-        }
-
-        this.tableBuyIn = Math.max(1, buyIn);
-        bettingPot.setSmallBlindAmount(Math.max(1, this.tableBuyIn / 50));
-        historyTableId = 0;
-    }
-
-    public synchronized void resetTableForBuyIn(int buyIn) {
-        updateTrackedBankrolls();
-        tableManager.clearSeats();
-        communityCards.clear();
-        currentHandId = null;
-        currentState = GameState.WAITING_FOR_PLAYERS;
-        bettingPot.resetAll();
-        nextHandScheduled = false;
-        this.tableBuyIn = Math.max(1, buyIn);
-        bettingPot.setSmallBlindAmount(Math.max(1, this.tableBuyIn / 50));
-        historyTableId = 0;
-        broadcaster.broadcastGameState(currentState);
-    }
-
-    public synchronized void clearTable() {
-        updateTrackedBankrolls();
-        tableManager.clearSeats();
-        communityCards.clear();
-        currentHandId = null;
-        currentState = GameState.WAITING_FOR_PLAYERS;
-        bettingPot.resetAll();
-        nextHandScheduled = false;
-        historyTableId = 0;
-        broadcaster.broadcastGameState(currentState);
-    }
-
-    public boolean canPlayerAffordBuyIn(String username, int buyIn) {
-        if (playerRepository == null) {
-            return true;
-        }
-
-        PlayerProfileDTO profile = findStoredProfile(username);
-        return profile == null || profile.totalBankroll() >= buyIn;
-    }
-
-    public synchronized TableSeat sitPlayerDown(String id, int chips, int idx) {
-        PlayerProfileDTO storedProfile = findStoredProfile(id);
-        String username = storedProfile == null ? id : storedProfile.username();
-
-        return tableManager.findByUsername(username).orElseGet(() -> {
-            int seatIndex = idx >= 0 ? idx : findFirstOpenSeatIndex();
-            if (seatIndex < 0 || seatIndex >= MAX_SEATS) {
-                return null;
-            }
-
-            PlayerProfileDTO profile = loadSeatProfile(id, chips, storedProfile);
-            if (profile == null) {
-                return null;
-            }
-
-            TableSeat seat = new TableSeat(profile, chips);
-            if (storedProfile != null) {
-                seat.trackPersistence();
-                int bankrollBase = profile.totalBankroll() - chips;
-                seat.trackBankrollFromBase(bankrollBase);
-                saveBankroll(profile, bankrollBase);
-            }
-            seat.setSeatIndex(seatIndex);
-            tableManager.addSeat(seat);
-            broadcaster.broadcastSeatOccupied(seat, currentHandId);
-            return seat;
-        });
-    }
-
-    public synchronized TableSeat sitPlayerDown(String id) {
-        return sitPlayerDown(id, tableBuyIn, -1);
-    }
-
-    public synchronized boolean removePlayer(String username) {
-        if (!isBetweenHands()) {
-            return false;
-        }
-        return tableManager.removeByUsername(username);
-    }
-
     public synchronized boolean hasPlayer(String username) {
         return tableManager.findByUsername(username).isPresent();
     }
@@ -430,22 +480,11 @@ public class PokerGameEngine implements IPublicActionAPI {
         return findFirstOpenSeatIndex() >= 0;
     }
 
-    public synchronized boolean isBetweenHands() {
-        return currentState == GameState.WAITING_FOR_PLAYERS || currentState == GameState.HAND_OVER;
-    }
-
-    public synchronized void startHandIfReady() {
-        if (currentState == GameState.HAND_OVER && nextHandScheduled) {
-            return;
-        }
-
-        if (tableManager.size() >= 2 && isBetweenHands()) {
-            startNewHand();
-        }
-    }
-
     public synchronized List<String> getSeatedUsernames() {
-        return tableManager.getSeats().stream().map(TableSeat::getUsername).toList();
+        return tableManager.getSeats().stream()
+                .filter(Objects::nonNull)
+                .map(TableSeat::getUsername)
+                .toList();
     }
 
     public synchronized List<HandParticipantDTO> getTableParticipants() {
@@ -454,6 +493,7 @@ public class PokerGameEngine implements IPublicActionAPI {
 
     public synchronized List<HandParticipantDTO> getTableParticipantsForViewer(String viewerUsername, boolean revealAllCards) {
         return tableManager.getSeats().stream()
+                .filter(Objects::nonNull)
                 .sorted(Comparator.comparingInt(TableSeat::getSeatIndex))
                 .map(seat -> new HandParticipantDTO(
                         currentHandId == null ? "WAITING_FOR_HAND" : currentHandId,
@@ -463,123 +503,21 @@ public class PokerGameEngine implements IPublicActionAPI {
                         seat.getChipsOnTable(),
                         seat.getChipsOnTable(),
                         0,
+                        false,
+                        false,
                         false
                 ))
                 .toList();
     }
 
-    private void saveStartedHand() {
-        if (gameRepository == null || currentHandId == null || currentHandStartedAt == null) {
-            return;
-        }
-
-        int tableId = ensureHistoryTable();
-        if (tableId <= 0) {
-            return;
-        }
-
-        gameRepository.saveHandHistory(new HandHistoryDTO(
-                currentHandId,
-                tableId,
-                currentHandStartedAt,
-                "",
-                0,
-                ""
-        ));
-    }
-
-    private void saveCompletedHand() {
-        if (gameRepository == null || currentHandId == null || currentHandStartedAt == null) {
-            return;
-        }
-
-        int tableId = ensureHistoryTable();
-        if (tableId <= 0) {
-            return;
-        }
-
-        gameRepository.saveHandHistory(new HandHistoryDTO(
-                currentHandId,
-                tableId,
-                currentHandStartedAt,
-                communityCardsForHistory(),
-                bettingPot.getPotSize(),
-                currentWinningHandRank
-        ));
-
-        for (TableSeat seat : tableManager.getSeats()) {
-            if (!shouldPersistSeat(seat)) {
-                continue;
-            }
-
-            int startChips = handStartChipsByUsername.getOrDefault(seat.getUsername(), seat.getChipsOnTable());
-            int endChips = seat.getChipsOnTable();
-            gameRepository.saveHandParticipant(new HandParticipantDTO(
-                    currentHandId,
-                    seat.getUsername(),
-                    seat.getSeatIndex(),
-                    holeCardsForSeat(seat, seat.getUsername(), true),
-                    startChips,
-                    endChips,
-                    endChips - startChips,
-                    currentWinnerUsernames.contains(seat.getUsername())
-            ));
-        }
-    }
-
-    private void saveHandAction(HandActionDTO action) {
-        if (gameRepository == null || action == null || action.handId() == null) {
-            return;
-        }
-
-        TableSeat actor = tableManager.findByUsername(action.playerId()).orElse(null);
-        if (!shouldPersistSeat(actor)) {
-            return;
-        }
-
-        gameRepository.saveHandAction(action);
-    }
-
-    private boolean shouldPersistSeat(TableSeat seat) {
-        return seat != null && seat.isPersistenceTracked();
-    }
-
-    private int ensureHistoryTable() {
-        if (historyTableId > 0) {
-            return historyTableId;
-        }
-
-        if (gameRepository == null) {
-            return 0;
-        }
-
-        String hosterId = tableManager.getSeats().stream()
-                .filter(this::shouldPersistSeat)
-                .map(TableSeat::getProfile)
-                .filter(Objects::nonNull)
-                .map(PlayerProfileDTO::id)
-                .filter(id -> id != null && !id.isBlank())
-                .findFirst()
-                .orElse(null);
-        historyTableId = gameRepository.findOrCreatePokerTable("Table $" + tableBuyIn, hosterId);
-        return historyTableId;
-    }
-
-    private String communityCardsForHistory() {
-        return communityCards.stream()
-                .map(this::cardToToken)
-                .reduce((left, right) -> left + "," + right)
-                .orElse("");
-    }
-
     private void broadcastBlindActions() {
-        int smallBlindIndex = (tableManager.getDealerIndex() + 1) % tableManager.size();
-        int bigBlindIndex = (tableManager.getDealerIndex() + 2) % tableManager.size();
+        int dealerIndex = tableManager.getDealerIndex();
 
-        HandActionDTO smallBlind = broadcaster.broadcastAction(tableManager.getSeatAt(smallBlindIndex), "SMALL BLIND", bettingPot.getSmallBlindAmount(), currentState, currentHandId);
-        HandActionDTO bigBlind = broadcaster.broadcastAction(tableManager.getSeatAt(bigBlindIndex), "BIG BLIND", bettingPot.getBigBlindAmount(), currentState, currentHandId);
-        saveHandAction(smallBlind);
-        saveHandAction(bigBlind);
+        int sbIndex = tableManager.getNextActivePlayerIndex(dealerIndex);
+        int bbIndex = tableManager.getNextActivePlayerIndex(sbIndex);
+
+        broadcaster.broadcastAction(tableManager.getSeatAt(sbIndex), "SMALL BLIND", bettingPot.getSmallBlindAmount(), currentState, currentHandId);
+        broadcaster.broadcastAction(tableManager.getSeatAt(bbIndex), "BIG BLIND", bettingPot.getBigBlindAmount(), currentState, currentHandId);
     }
 
     private String holeCardsForSeat(TableSeat seat, String viewerUsername, boolean revealAllCards) {
@@ -609,62 +547,21 @@ public class PokerGameEngine implements IPublicActionAPI {
         return value + card.getSuit().substring(0, 1).toLowerCase();
     }
 
-    private void scheduleNextHand() {
-        if (nextHandScheduled || tableManager.size() < 2) {
-            return;
-        }
-
-        nextHandScheduled = true;
-        Thread nextHandThread = new Thread(() -> {
-            try {
-                Thread.sleep(8000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            startScheduledHandIfReady();
-        }, "Next-Hand-Starter");
-        nextHandThread.setDaemon(true);
-        nextHandThread.start();
-    }
-
-    private synchronized void startScheduledHandIfReady() {
-        if (tableManager.size() >= 2 && currentState == GameState.HAND_OVER) {
-            startNewHand();
-            return;
-        }
-
-        nextHandScheduled = false;
-        startHandIfReady();
-    }
-
-    private PlayerProfileDTO loadSeatProfile(String username, int buyIn, PlayerProfileDTO storedProfile) {
+    private PlayerProfileDTO loadSeatProfile(String username, int buyIn) {
         if (playerRepository == null) {
             return new PlayerProfileDTO(username, username, null, null, buyIn, null);
         }
 
-        if (storedProfile == null) {
+        PlayerProfileDTO profile = playerRepository.findProfileByUsername(username);
+        if (profile == null) {
             return new PlayerProfileDTO(username, username, null, null, buyIn, null);
         }
 
-        if (storedProfile.totalBankroll() < buyIn) {
+        if (profile.totalBankroll() < buyIn) {
             return null;
         }
 
-        return storedProfile;
-    }
-
-    private PlayerProfileDTO findStoredProfile(String usernameOrId) {
-        if (playerRepository == null || usernameOrId == null || usernameOrId.isBlank()) {
-            return null;
-        }
-
-        PlayerProfileDTO profile = playerRepository.findProfileByUsername(usernameOrId);
-        if (profile != null) {
-            return profile;
-        }
-
-        return playerRepository.findProfileById(usernameOrId);
+        return profile;
     }
 
     private void updateTrackedBankrolls() {
@@ -673,6 +570,7 @@ public class PokerGameEngine implements IPublicActionAPI {
         }
 
         for (TableSeat seat : tableManager.getSeats()) {
+            if (seat == null) continue;
             if (!seat.isBankrollTracked()) {
                 continue;
             }
@@ -700,6 +598,9 @@ public class PokerGameEngine implements IPublicActionAPI {
     private int findFirstOpenSeatIndex() {
         Set<Integer> occupiedIndexes = new HashSet<>();
         for (TableSeat seat : tableManager.getSeats()) {
+            if (seat == null) {
+                continue;
+            }
             occupiedIndexes.add(seat.getSeatIndex());
         }
 
@@ -721,5 +622,18 @@ public class PokerGameEngine implements IPublicActionAPI {
 
     public GameEventBroadcaster getBroadcaster() {
         return broadcaster;
+    }
+
+
+    public String getTableId() {
+        return tableId;
+    }
+
+    public void setTableId(String tableId) {
+        this.tableId = tableId;
+    }
+
+    public List<TableSeat> getWinners() {
+        return winners;
     }
 }

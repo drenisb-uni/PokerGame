@@ -5,16 +5,16 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.javalin.websocket.WsContext;
 import pokergame.domain.dto.GameMessageDTO;
 import pokergame.engine.commands.PlayerCommand;
-import pokergame.server.engine.GameCommandProcessor;
+import pokergame.server.engine.actor.TableActor;
 
 public class GameNetworkService {
     private final PokerTableManager tableManager;
-    private final GameCommandProcessor commandProcessor;
     private final ObjectMapper mapper;
+    private final TableActor tableActor;
 
-    public GameNetworkService(GameCommandProcessor commandProcessor) {
+    public GameNetworkService(TableActor tableActor) {
         this.tableManager = new PokerTableManager();
-        this.commandProcessor = commandProcessor;
+        this.tableActor = tableActor;
         this.mapper = new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
@@ -44,7 +44,6 @@ public class GameNetworkService {
             PlayerCommand command = PlayerCommand.fromNetworkMessage(sender, incomingMessage);
 
             // 3. Queue it up for the engine thread
-            commandProcessor.queueCommand(command);
 
         } catch (IllegalArgumentException e) {
             System.err.println("[NetworkService] Malformed game action: " + e.getMessage());
