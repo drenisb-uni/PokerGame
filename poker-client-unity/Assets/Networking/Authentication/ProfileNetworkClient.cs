@@ -47,7 +47,7 @@ public class ProfileNetworkClient
 
                 HttpResponseMessage response = await _httpClient.GetAsync(url);
                 if (response.IsSuccessStatusCode)
-                {
+                {   
                     string body = await response.Content.ReadAsStringAsync();
                     return JsonConvert.DeserializeObject<PlayerProfileDto>(body);
                 }

@@ -1,0 +1,26 @@
+<engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <engine:TabView style="height: 68px; justify-content: center;">
+        <engine:Tab label="Tab" style="flex-direction: column; align-items: auto; height: 21px; align-self: center; justify-content: space-around;">
+            <engine:GroupBox style="flex-direction: column; align-items: stretch; justify-content: center; align-self: center; position: relative; height: 621px; top: 33%; left: auto; right: auto; bottom: 50px; padding-left: 0; margin-top: 30px; margin-right: 0; margin-bottom: 0; margin-left: 0; padding-top: 0; padding-bottom: 0;">
+                <engine:TextField placeholder-text="filler text" style="height: 169px; align-items: stretch; align-self: stretch; justify-content: flex-end; margin-bottom: 30px;" />
+                <engine:TextField placeholder-text="filler text" style="height: 169px; align-items: stretch; align-self: stretch; justify-content: flex-end; margin-bottom: 30px;" />
+                <engine:Button text="Button" style="-unity-text-align: middle-center; height: 180px; white-space: nowrap; text-overflow: clip; margin-bottom: 30px;" />
+                <engine:VisualElement style="flex-grow: 1; align-items: center; justify-content: space-around; align-self: center; flex-direction: row; height: 106px; margin-top: 30px;">
+                    <engine:Button text="Button" name="Button" style="width: 857px; height: 98px; -unity-text-align: middle-center;" />
+                    <engine:Button text="Button" style="width: 382px; height: 98px;" />
+                </engine:VisualElement>
+            </engine:GroupBox>
+        </engine:Tab>
+        <engine:Tab label="Tab">
+            <engine:GroupBox style="flex-direction: column; align-items: stretch; justify-content: center; align-self: center; position: relative; height: 621px; top: 33%; left: auto; right: auto; bottom: 50px; padding-left: 0; margin-top: 30px; margin-right: 0; margin-bottom: 0; margin-left: 0; padding-top: 0; padding-bottom: 0;">
+                <engine:TextField placeholder-text="filler text" style="height: 169px; align-items: stretch; align-self: stretch; justify-content: flex-end; margin-bottom: 30px;" />
+                <engine:TextField placeholder-text="filler text" style="height: 169px; align-items: stretch; align-self: stretch; justify-content: flex-end; margin-bottom: 30px;" />
+                <engine:Button text="Button" style="-unity-text-align: middle-center; height: 180px; white-space: nowrap; text-overflow: clip; margin-bottom: 30px;" />
+                <engine:VisualElement style="flex-grow: 1; align-items: center; justify-content: space-around; align-self: center; flex-direction: row; height: 106px; margin-top: 30px;">
+                    <engine:Button text="Button" name="Button" style="width: 857px; height: 98px; -unity-text-align: middle-center;" />
+                    <engine:Button text="Button" style="width: 382px; height: 98px;" />
+                </engine:VisualElement>
+            </engine:GroupBox>
+        </engine:Tab>
+    </engine:TabView>
+</engine:UXML>
